@@ -1,0 +1,51 @@
+system_name: optimized_nanoparticle_network
+description: Production configuration built from the rank-1 optimization result.
+network:
+  n_junctions: 500
+  connection_radius: 0.15
+  domain_size:
+  - 1.0
+  - 1.0
+  left_thresh: 0.15
+  right_thresh: 0.85
+threshold_distribution:
+  type: normal
+  mean: 4.0
+  std: 1.0
+  min: 0.0
+  max: 20.0
+electrical:
+  edge_k: 20000000000.0
+  resistance_model: node
+  node_r_scale: 500000000.0
+  r_floor: 0.5
+  calculation_method: kirchhoff
+  tunneling_effects: true
+voltage_sweep:
+  V_start: 0.0
+  V_max: 16.0
+  V_step: 0.5
+  fit_window: 10.0
+  target_voltage: 16.0
+seeds:
+- 41
+- 51
+- 61
+- 71
+- 81
+output:
+  root_folder: IV_results
+  save_seed_curves: true
+  save_representative_network_plot: true
+optimization_provenance:
+  source_files:
+  - best_parameter_set.yaml
+  - aggregated_results.csv
+  - top_20_parameter_sets.csv
+  - trial_results.csv
+  rank: 1
+  score: 0.991241
+  peak_current_mean_A: 2.2108372899865819e-07
+  percolation_voltage_mean_V: 2.0
+  fit_zeta_mean: 1.4791341535127038
+  fit_R2_mean: 0.9947182028118092
