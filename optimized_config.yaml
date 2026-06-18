@@ -10,8 +10,8 @@ network:
   right_thresh: 0.85
 threshold_distribution:
   type: normal
-  mean: 7.0
-  std: 2.0
+  mean: 4.0
+  std: 1.0
   min: 0.0
   max: 20.0
 electrical:
