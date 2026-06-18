@@ -32,20 +32,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-# =============================================================================
-# STYLE  —  Image-1 reference style
-#
-# Key choices (matching the reference figure):
-#   • Larger canvas with generous whitespace via tight_layout pad
-#   • STIXGeneral math font so italic variables render like proper LaTeX
-#   • Bracket notation for units: [V], [-] rather than (V)
-#   • No legend on single-curve panels (legend only for multi-curve overlays)
-#   • Y-axis floor set to 0 so the scale is honest
-#   • Heavier line (2.5 pt) and larger filled circle markers (10 pt)
-#   • Thicker, outward-pointing ticks on bottom and left axes only
-#   • Top and right spines kept (closed box) — matching the reference
-#   • No grid
-# =============================================================================
 STYLE = {
     # --- fonts ---
     "font_family":      "STIXGeneral",   # italic math variables match Image 1
@@ -70,29 +56,13 @@ STYLE = {
     "overlay_colors": ["#2B6CB0", "purple", "darkorange", "red", "green", "brown"],
 
     # --- I-V overlay representative seed ---
-    # Case 1 / Case 2 I-V CSVs may contain multiple seeds per parameter value.
-    # Plotting all of them as one curve causes vertical "teeth", because points
-    # from different seeds share the same voltage values. Use one representative
-    # seed for clean publication overlays.
     "iv_seed": 41,
 
     # --- I-V curve trimming ---
-    # The sweep now trims each I-V CSV at that run's own connectivity-transition
-    # voltage (the nonlinear->linear knee, where algebraic connectivity goes
-    # flat), so each curve already ends where it should. Leave this False so the
-    # plotter shows the CSV as-is — each curve ending at its OWN transition.
-    # Set True to additionally impose a single common upper voltage
-    # (common_V_max) across all curves; note that would re-chop any curve whose
-    # transition sits above common_V_max, discarding data the sweep kept.
     "trim_to_common_V": False,
     "common_V_max":     12.0,    # V, common cap, only used if trim_to_common_V
 
     # --- activation-voltage distribution x-range ---
-    # The distribution CSVs are now written as a Gaussian CLIPPED and
-    # renormalized to this window (see save_distribution_csv in
-    # parameter_sweep_cases.py). Bound the distribution plot x-axis to the same
-    # window so the figure shows exactly the clipped range (sub-2 V left tail
-    # stays visible) instead of autoscaling. Set to None to autoscale.
     "VA_CLIP":      (0.0, 20.0),
 
     # --- output ---
@@ -115,15 +85,12 @@ def apply_style():
         "ytick.labelsize":      STYLE["font_size_tick"],
         "legend.fontsize":      STYLE["font_size_legend"],
         "axes.grid":            False,
-        # ticks: outward, bottom and left only — top/right suppressed here,
-        # confirmed off per-axes in _finalise_ax / _finalise_overlay
         "xtick.direction":      "out",
         "ytick.direction":      "out",
         "xtick.major.size":     6,
         "ytick.major.size":     6,
         "xtick.major.width":    1.4,
         "ytick.major.width":    1.4,
-        # closed box (all four spines visible, no ticks on top/right)
         "axes.spines.top":      True,
         "axes.spines.right":    True,
         "axes.linewidth":       1.4,
@@ -166,7 +133,7 @@ def _finalise_overlay(ax):
 
 
 # =============================================================================
-# axis-label helpers  (bracket SI notation + descriptive prefix)
+# axis-label helpers 
 # =============================================================================
 _YLABEL = {
     "VT":   r"Threshold voltage, $V_\mathrm{T}$ [V]",
@@ -537,9 +504,6 @@ def plot_sampled_va_hist(path, outdir, bins=40):
 
     ax.set_xlabel(r"Activation voltage, $V_a$ [V]")
     ax.set_ylabel("Density [-]")
-
-    # Extend the y-axis upper limit by 35 % so the legend sits clear of the
-    # tallest bar. The lower bound is enforced at 0 explicitly.
     ymax = ax.get_ylim()[1]
     ax.set_ylim(0, ymax * 1.35)
 
@@ -826,8 +790,6 @@ def plot_sweep_iv_multi(paths, outdir, phases=None, out_name="iv_curve_multiseed
         band_label = "Spread (±1σ)"
 
     # ---- aggregated CSV over the FULL voltage union (complete rows) ----
-    # Mean/std in nanoamps at every voltage any seed has; where a voltage is
-    # missing from some seeds, nanmean/nanstd use the seeds that have it.
     all_V = sorted(set().union(*[set(s.index) for s in cur_curves.values()]))
     all_V = np.array(all_V, dtype=float)
     Mfull = np.vstack([cur_curves[p].reindex(all_V).to_numpy() * 1e9
@@ -968,10 +930,6 @@ def main():
     args = ap.parse_args()
 
     apply_style()
-
-    # A command-line --vmax turns on the common-voltage cap used by the I-V
-    # overlay helpers (via _common_V_mask). Without it, curves are shown exactly
-    # as stored (already trimmed at each run's transition voltage upstream).
     if args.vmax is not None:
         STYLE["trim_to_common_V"] = True
         STYLE["common_V_max"] = float(args.vmax)
