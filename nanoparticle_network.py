@@ -114,7 +114,6 @@ class NanoparticleNetwork:
         if total_removed > 0:
             remaining_nodes = list(self.G.nodes())
             self.positions = self.positions[remaining_nodes]
-            # Relabel nodes to be contiguous (0, 1, 2, ...)
             mapping = {old_node: new_node for new_node, old_node in enumerate(remaining_nodes)}
             self.G = nx.relabel_nodes(self.G, mapping)
             self.n_junctions = self.G.number_of_nodes()
@@ -258,7 +257,7 @@ class NanoparticleNetwork:
         """
         Calculate total resistance and current through the percolation path.
 
-        The path consists of nodes (junctions) and edges (Au nanoparticles).
+        The path consists of nodes (junctions) and edges.
         Total resistance = sum of edge resistances along the path.
 
         The effective voltage drop available for current is:
