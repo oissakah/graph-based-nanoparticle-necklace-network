@@ -10,8 +10,8 @@ network:
   right_thresh: 0.85
 threshold_distribution:
   type: normal
-  mean: 4.0
-  std: 1.0
+  mean: 7.0
+  std: 2.0
   min: 0.0
   max: 20.0
 electrical:
@@ -47,5 +47,5 @@ optimization_provenance:
   score: 0.991241
   peak_current_mean_A: 2.2108372899865819e-07
   percolation_voltage_mean_V: 2.0
+  fit_gamma_mean: 1.4791341535127038
   fit_R2_mean: 0.9947182028118092
-  fit_zeta_mean: 1.4791341535127038
