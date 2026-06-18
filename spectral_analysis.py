@@ -27,6 +27,7 @@ from scipy.sparse.linalg import spsolve
 EIG_REL_TOL = 1e-9
 R_MIN = 1.0
 
+
 def build_full_system(net, activated_nodes):
     """
     Build the full node+edge system matrix on the source-to-drain bridging set,
@@ -103,6 +104,7 @@ def build_full_system(net, activated_nodes):
         "internal": internal, "electrode": electrode,
     }
 
+
 def effective_resistance(net, activated_nodes, V_test=1.0):
     """
     Source-to-drain effective resistance from the full system matrix.
@@ -142,6 +144,7 @@ def effective_resistance(net, activated_nodes, V_test=1.0):
             I_tot += ge * (phi[row_out(nb)] - phi[row_in(d)])
     I_tot = abs(I_tot)
     return (V_test / I_tot) if I_tot > 0 else np.nan
+
 
 def spectral_metrics(net, activated_nodes):
     """

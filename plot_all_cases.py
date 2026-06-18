@@ -31,9 +31,19 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-
+# STYLE  —  Image-1 reference style
+#
+# Key choices (matching the reference figure):
+#   • Larger canvas with generous whitespace via tight_layout pad
+#   • STIXGeneral math font so italic variables render like proper LaTeX
+#   • Bracket notation for units: [V], [-] rather than (V)
+#   • No legend on single-curve panels (legend only for multi-curve overlays)
+#   • Y-axis floor set to 0 so the scale is honest
+#   • Heavier line (2.5 pt) and larger filled circle markers (10 pt)
+#   • Thicker, outward-pointing ticks on bottom and left axes only
+#   • Top and right spines kept (closed box) — matching the reference
+#   • No grid
 STYLE = {
-    # --- fonts ---
     "font_family":      "STIXGeneral",   # italic math variables match Image 1
     "font_size_base":   14,
     "font_size_label":  17,              # axis-label size
@@ -41,13 +51,11 @@ STYLE = {
     "font_size_legend": 14,
     "font_size_annot":  11,              # heatmap cell text
 
-    # --- line / marker ---
     "line_width":   2.5,                 # heavier than the default 1.5
     "marker_size":  10,                  # large filled circles
     "cap_size":     5,                   # error-bar cap length
     "elinewidth":   2.0,                 # error-bar line width
 
-    # --- colours ---
     "color_VT":     "#2B6CB0",           # strong blue matching Image 1
     "color_zeta":   "#C53030",           # red for zeta panels
     "heatmap_cmap": "viridis",
@@ -56,24 +64,34 @@ STYLE = {
     "overlay_colors": ["#2B6CB0", "purple", "darkorange", "red", "green", "brown"],
 
     # --- I-V overlay representative seed ---
+    # Case 1 / Case 2 I-V CSVs may contain multiple seeds per parameter value.
+    # Plotting all of them as one curve causes vertical "teeth", because points
+    # seed for clean publication overlays.
     "iv_seed": 41,
 
     # --- I-V curve trimming ---
+    # The sweep now trims each I-V CSV at that run's own connectivity-transition
+    # voltage (the nonlinear->linear knee, where algebraic connectivity goes
+    # flat), so each curve already ends where it should. Leave this False so the
+    # plotter shows the CSV as-is — each curve ending at its OWN transition.
+    # transition sits above common_V_max, discarding data the sweep kept.
     "trim_to_common_V": False,
     "common_V_max":     12.0,    # V, common cap, only used if trim_to_common_V
 
     # --- activation-voltage distribution x-range ---
+    # The distribution CSVs are now written as a Gaussian CLIPPED and
+    # renormalized to this window (see save_distribution_csv in
+    # parameter_sweep_cases.py). Bound the distribution plot x-axis to the same
+    # window so the figure shows exactly the clipped range (sub-2 V left tail
+    # stays visible) instead of autoscaling. Set to None to autoscale.
     "VA_CLIP":      (0.0, 20.0),
 
-    # --- output ---
     "dpi":          200,
     "fig_format":   "png",
 
-    # --- axes ---
     "ymin_zero":    True,   # set y-axis lower bound to 0 (honest scale)
     "tight_pad":    0.4,    # extra whitespace around axes
 }
-
 
 def apply_style():
     plt.rcParams.update({
@@ -85,17 +103,19 @@ def apply_style():
         "ytick.labelsize":      STYLE["font_size_tick"],
         "legend.fontsize":      STYLE["font_size_legend"],
         "axes.grid":            False,
+        # ticks: outward, bottom and left only — top/right suppressed here,
+        # confirmed off per-axes in _finalise_ax / _finalise_overlay
         "xtick.direction":      "out",
         "ytick.direction":      "out",
         "xtick.major.size":     6,
         "ytick.major.size":     6,
         "xtick.major.width":    1.4,
         "ytick.major.width":    1.4,
+        # closed box (all four spines visible, no ticks on top/right)
         "axes.spines.top":      True,
         "axes.spines.right":    True,
         "axes.linewidth":       1.4,
     })
-
 
 def _save(fig, outdir, name):
     os.makedirs(outdir, exist_ok=True)
@@ -104,14 +124,12 @@ def _save(fig, outdir, name):
     plt.close(fig)
     print(f"  wrote {path}")
 
-
 def _common_V_mask(V):
     """Boolean mask keeping I-V points at or below the common upper voltage."""
     V = np.asarray(V, dtype=float)
     if not STYLE.get("trim_to_common_V", False):
         return np.ones(len(V), dtype=bool)
     return V <= STYLE["common_V_max"] + 1e-9
-
 
 def _finalise_ax(ax, multi):
     """
@@ -126,15 +144,11 @@ def _finalise_ax(ax, multi):
     if multi:
         ax.legend(frameon=False)
 
-
 def _finalise_overlay(ax):
     """Ticks on bottom/left only — for multi-curve overlay plots."""
     ax.tick_params(top=False, right=False, which="both")
 
-
-# =============================================================================
-# axis-label helpers 
-# =============================================================================
+# axis-label helpers  (bracket SI notation + descriptive prefix)
 _YLABEL = {
     "VT":   r"Threshold voltage, $V_\mathrm{T}$ [V]",
     "zeta": r"Scaling exponent, $\zeta$ [-]",
@@ -147,14 +161,10 @@ _XLABEL = {
     "void_fraction":      r"Void fraction, $f_v$ [-]",
 }
 
-
 def _make_xlabel(xcol, fallback=None):
     return _XLABEL.get(xcol, fallback or xcol)
 
-
-# =============================================================================
 # 1-D sweep:  metric vs a single swept variable (with seed averaging)
-# =============================================================================
 def plot_metric_vs_x(d, xcol, xlabel, case, outdir,
                      metric, ycol, ylabel, fname):
     """Average `ycol` over seeds at each x, plot with mean +/- std error bars."""
@@ -187,17 +197,13 @@ def plot_metric_vs_x(d, xcol, xlabel, case, outdir,
     fig.tight_layout(pad=STYLE["tight_pad"])
     _save(fig, outdir, f"{case}_{fname}")
 
-
 def do_1d(d, xcol, xlabel, case, outdir):
     plot_metric_vs_x(d, xcol, xlabel, case, outdir,
                      "VT",   "fit_V_T_V", r"$V_T$ [V]",  "VT")
     plot_metric_vs_x(d, xcol, xlabel, case, outdir,
                      "zeta", "fit_zeta",  r"$\zeta$", "zeta")
 
-
-# =============================================================================
 # 2-D grid (case_3):  heatmaps over (N, <V_a>)
-# =============================================================================
 def plot_heatmap(d, case, outdir, ycol, clabel, fname):
     xs = sorted(d["N"].unique())
     ys = sorted(d["mean_Va_target_V"].unique())
@@ -227,17 +233,13 @@ def plot_heatmap(d, case, outdir, ycol, clabel, fname):
     fig.tight_layout(pad=STYLE["tight_pad"])
     _save(fig, outdir, f"{case}_{fname}")
 
-
 def do_heatmaps(d, case, outdir):
     plot_heatmap(d, case, outdir, "fit_zeta",
                  r"Scaling exponent, $\zeta$ [-]",         "zeta_heatmap")
     plot_heatmap(d, case, outdir, "fit_V_T_V",
                  r"Threshold voltage, $V_\mathrm{T}$ [V]", "VT_heatmap")
 
-
-# =============================================================================
 # per-case routing
-# =============================================================================
 def plot_case(case, d, outdir):
     print(f"[{case}]  {len(d)} rows")
     if case == "case_1":
@@ -264,15 +266,12 @@ def plot_case(case, d, outdir):
         else:
             print(f"  [skip] nothing varies in {case}")
 
-
 def plot_distribution(path, outdir):
     """
     Plot activation-voltage distribution curves from a *_distribution_data.csv
-    (V_a column + one density_meanM_sigmaS column per curve).
-
-    If a column name contains "shifted", it is plotted with the same colour as
-    its matching sigma curve but with a dashed line. This is useful for showing
-    a second curve with the same sigma value but a slightly shifted distribution.
+    (V_a column + one density_meanM_sigmaS column per curve). The legend shows
+    whichever parameter varies across the columns: sigma if the mean is fixed
+    (case_1), otherwise the mean (case_2a / case_2b).
     """
     import re
     df = pd.read_csv(path)
@@ -283,82 +282,44 @@ def plot_distribution(path, outdir):
     def parse(c):
         m = re.search(r"mean(\d+(?:\.\d+)?)", c)
         s = re.search(r"sigma(\d+(?:\.\d+)?)", c)
-        shifted = "shifted" in c.lower()
-        return (
-            float(m.group(1)) if m else None,
-            float(s.group(1)) if s else None,
-            shifted,
-        )
+        return (float(m.group(1)) if m else None,
+                float(s.group(1)) if s else None)
+    parsed   = {c: parse(c) for c in dens_cols}
+    means    = {parsed[c][0] for c in dens_cols}
+    sigmas   = {parsed[c][1] for c in dens_cols}
+    by_sigma = len(sigmas) > 1 and len(means) <= 1
 
-    parsed = {c: parse(c) for c in dens_cols}
-    means = {parsed[c][0] for c in dens_cols}
-    sigmas = {parsed[c][1] for c in dens_cols}
-    by_sigma = len(sigmas) > 1 and len(means) <= 2
-
-    cols = sorted(
-        dens_cols,
-        key=lambda c: (
-            parsed[c][1] if by_sigma else parsed[c][0],
-            1 if parsed[c][2] else 0,
-        ),
-    )
-
+    cols   = sorted(dens_cols, key=lambda c: parsed[c][1] if by_sigma else parsed[c][0])
     colors = STYLE["overlay_colors"]
-    if by_sigma:
-        unique_sigmas = sorted({parsed[c][1] for c in cols})
-        color_map = {sv: colors[i % len(colors)] for i, sv in enumerate(unique_sigmas)}
-    else:
-        unique_means = sorted({parsed[c][0] for c in cols})
-        color_map = {mv: colors[i % len(colors)] for i, mv in enumerate(unique_means)}
-
     fig, ax = plt.subplots(figsize=(6.0, 5.5))
-    for c in cols:
-        mv, sv, shifted = parsed[c]
-        if by_sigma:
-            if shifted:
-                lbl = rf"$\sigma_a$ = {sv:g} V ($\langle V_a\rangle$ = {mv:g} V)"
-            else:
-                lbl = rf"$\sigma_a$ = {sv:g} V"
-            color = color_map[sv]
-        else:
-            if shifted:
-                lbl = rf"$\langle V_a\rangle$ = {mv:g} V"
-            else:
-                lbl = rf"$\langle V_a\rangle$ = {mv:g} V"
-            color = color_map[mv]
-
-        ax.plot(
-            x,
-            df[c],
-            linestyle=(0, (6, 3)) if shifted else "-",
-            lw=STYLE["line_width"] + (0.3 if shifted else 0.0),
-            color=color,
-            label=lbl,
-        )
-
+    for k, c in enumerate(cols):
+        mv, sv = parsed[c]
+        lbl = (rf"$\sigma_{{V_a}}$ = {sv:g} V" if by_sigma
+               else rf"$\langle V_a\rangle$ = {mv:g} V")
+        ax.plot(x, df[c], "-", lw=STYLE["line_width"],
+                color=colors[k % len(colors)], label=lbl)
     ax.set_xlabel(r"Activation voltage, $V_a$ [V]")
     ax.set_ylabel("Density [-]")
     clip = STYLE.get("VA_CLIP")
     if clip is not None:
         ax.set_xlim(float(clip[0]), float(clip[1]))
-    ax.legend(
-    frameon=False,
-    loc="upper right",
-    bbox_to_anchor=(0.98, 0.98),
-    borderaxespad=0.2
-)
+    ax.legend(frameon=False)
     _finalise_overlay(ax)
     fig.tight_layout(pad=STYLE["tight_pad"])
     _save(fig, outdir, f"{stem}")
-
 
 def plot_iv_overlay(path, outdir, seed=None):
     """
     Overlay I-V curves from a *_VT_zeta_iv_data.csv.
 
-    If a curve label contains "shifted", it is treated as a separate curve even
-    when it has the same sigma value as another curve. It is plotted dashed and
-    with the same colour as its corresponding sigma curve.
+    Important:
+    The CSV may contain several seeds for each swept parameter value. If all
+    seeds are plotted as one curve, matplotlib connects different seed
+    realizations at the same voltage and creates vertical "teeth". Therefore,
+    this function keeps one representative seed by default.
+
+    Labels look like:
+        N=500_mean8_sigma1_seed41
     """
     import re
     df = pd.read_csv(path)
@@ -372,12 +333,10 @@ def plot_iv_overlay(path, outdir, seed=None):
         mn = re.search(r"mean(\d+(?:\.\d+)?)", label)
         sg = re.search(r"sigma(\d+(?:\.\d+)?)", label)
         sd = re.search(r"seed(\d+)", label)
-        shifted = "shifted" in label.lower()
         return (
             float(mn.group(1)) if mn else None,
             float(sg.group(1)) if sg else None,
             int(sd.group(1)) if sd else None,
-            shifted,
         )
 
     df = df.copy()
@@ -385,8 +344,8 @@ def plot_iv_overlay(path, outdir, seed=None):
     df["_mean"] = parsed.map(lambda t: t[0])
     df["_sigma"] = parsed.map(lambda t: t[1])
     df["_seed"] = parsed.map(lambda t: t[2])
-    df["_shifted"] = parsed.map(lambda t: t[3])
 
+    # Keep one representative seed when seed labels exist.
     if df["_seed"].notna().any():
         sub = df[df["_seed"] == seed].copy()
 
@@ -403,44 +362,35 @@ def plot_iv_overlay(path, outdir, seed=None):
 
     n_mean = df["_mean"].nunique()
     n_sigma = df["_sigma"].nunique()
-    by_sigma = n_sigma > 1 and n_mean <= 2
+    by_sigma = n_sigma > 1 and n_mean <= 1
     keycol = "_sigma" if by_sigma else "_mean"
 
-    groups = []
-    for (val, shifted), s in df.groupby([keycol, "_shifted"], dropna=True):
-        groups.append((float(val), bool(shifted), s.copy()))
-    groups.sort(key=lambda item: (item[0], 1 if item[1] else 0))
-
-    colors = STYLE["overlay_colors"]
-    unique_vals = sorted({g[0] for g in groups})
-    color_map = {val: colors[i % len(colors)] for i, val in enumerate(unique_vals)}
+    vals = sorted(v for v in df[keycol].dropna().unique())
     ycol = "current_nA" if "current_nA" in df.columns else None
+    colors = STYLE["overlay_colors"]
 
     fig, ax = plt.subplots(figsize=(6.0, 5.5))
 
-    for val, shifted, s in groups:
-        s = s.sort_values("voltage_V")
+    for k, val in enumerate(vals):
+        s = df[df[keycol] == val].sort_values("voltage_V")
         V = s["voltage_V"].to_numpy()
         y = (s[ycol] if ycol else s["current_A"] * 1e9).to_numpy()
 
         m = _common_V_mask(V)
         V, y = V[m], y[m]
 
-        if by_sigma:
-            mean_val = float(s["_mean"].dropna().iloc[0]) if s["_mean"].notna().any() else np.nan
-            if shifted and np.isfinite(mean_val):
-                lbl = rf"$\sigma_a$ = {val:g} V ($\langle V_a\rangle$ = {mean_val:g} V)"
-            else:
-                lbl = rf"$\sigma_a$ = {val:g} V"
-        else:
-            lbl = rf"$\langle V_a\rangle$ = {val:g} V"
+        lbl = (
+            rf"$\sigma_{{V_a}}$ = {val:g} V"
+            if by_sigma
+            else rf"$\langle V_a\rangle$ = {val:g} V"
+        )
 
         ax.plot(
             V,
             y,
-            linestyle=(0, (6, 3)) if shifted else "-",
-            lw=STYLE["line_width"] + (0.3 if shifted else 0.0),
-            color=color_map[val],
+            "-",
+            lw=STYLE["line_width"],
+            color=colors[k % len(colors)],
             label=lbl,
         )
 
@@ -450,7 +400,6 @@ def plot_iv_overlay(path, outdir, seed=None):
     _finalise_overlay(ax)
     fig.tight_layout(pad=STYLE["tight_pad"])
     _save(fig, outdir, f"{stem}_iv_overlay")
-
 
 def plot_sampled_va_hist(path, outdir, bins=40):
     """
@@ -497,13 +446,16 @@ def plot_sampled_va_hist(path, outdir, bins=40):
     for k, c in enumerate(cols):
         vals = df[c].dropna().to_numpy(dtype=float)
         mv, sv = parsed[c]
-        lbl = (rf"$\sigma_a$ = {sv:g} V" if by_sigma
+        lbl = (rf"$\sigma_{{V_a}}$ = {sv:g} V" if by_sigma
                else rf"$\langle V_a\rangle$ = {mv:g} V")
         ax.hist(vals, bins=edges, density=True, histtype="step",
                 lw=STYLE["line_width"], color=colors[k % len(colors)], label=lbl)
 
     ax.set_xlabel(r"Activation voltage, $V_a$ [V]")
     ax.set_ylabel("Density [-]")
+
+    # Extend the y-axis upper limit by 35 % so the legend sits clear of the
+    # tallest bar. The lower bound is enforced at 0 explicitly.
     ymax = ax.get_ylim()[1]
     ax.set_ylim(0, ymax * 1.35)
 
@@ -511,7 +463,6 @@ def plot_sampled_va_hist(path, outdir, bins=40):
     _finalise_overlay(ax)
     fig.tight_layout(pad=STYLE["tight_pad"])
     _save(fig, outdir, f"{stem}_hist")
-
 
 def plot_case4_iv_by_N(path, outdir, seed=41):
     """
@@ -559,7 +510,6 @@ def plot_case4_iv_by_N(path, outdir, seed=41):
     fig.tight_layout(pad=STYLE["tight_pad"])
     _save(fig, outdir, f"{stem}_seed{seed}_by_N")
 
-
 def plot_caseR_aggregated(path, outdir):
     """
     Plot V_T and zeta vs void fraction from caseR_VT_zeta_aggregated.csv
@@ -604,7 +554,6 @@ def plot_caseR_aggregated(path, outdir):
         _finalise_ax(ax, False)
         fig.tight_layout(pad=STYLE["tight_pad"])
         _save(fig, outdir, f"caseR_{fname}")
-
 
 def plot_caseR_iv(path, outdir, void_fractions=(0.00, 0.10, 0.15, 0.20)):
     """
@@ -653,7 +602,6 @@ def plot_caseR_iv(path, outdir, void_fractions=(0.00, 0.10, 0.15, 0.20)):
     fig.tight_layout(pad=STYLE["tight_pad"])
     _save(fig, outdir, f"{stem}_iv_overlay")
 
-
 def plot_sweep_table(path, outdir):
     """
     Plot a single-network per-voltage evolution table (the sweep_table_*.csv
@@ -698,7 +646,6 @@ def plot_sweep_table(path, outdir):
 
     colors = STYLE["overlay_colors"]
 
-    # ---- I-V curve ----
     cur = col("total_current_chargeconserving_A")
     if cur is None:
         cur = col("total_current_A")
@@ -707,7 +654,6 @@ def plot_sweep_table(path, outdir):
     else:
         print(f"  [sweep table] {stem}: no current column — I-V skipped")
 
-    # ---- evolution metrics, each as its own figure ----
     metrics = [
         ("activated_nodes",         r"Activated node count, $N_\mathrm{act}$ [-]", "activated_nodes"),
         ("conducting_edges",        r"Conducting edges [-]",                       "conducting_edges"),
@@ -724,7 +670,6 @@ def plot_sweep_table(path, outdir):
         plotted_any = True
     if not plotted_any:
         print(f"  [sweep table] {stem}: no evolution columns — metrics skipped")
-
 
 def plot_sweep_iv_multi(paths, outdir, phases=None, out_name="iv_curve_multiseed",
                         spread="std"):
@@ -789,7 +734,8 @@ def plot_sweep_iv_multi(paths, outdir, phases=None, out_name="iv_curve_multiseed
         lo, hi = mean - sd, mean + sd
         band_label = "Spread (±1σ)"
 
-    # ---- aggregated CSV over the FULL voltage union (complete rows) ----
+    # Mean/std in nanoamps at every voltage any seed has; where a voltage is
+    # missing from some seeds, nanmean/nanstd use the seeds that have it.
     all_V = sorted(set().union(*[set(s.index) for s in cur_curves.values()]))
     all_V = np.array(all_V, dtype=float)
     Mfull = np.vstack([cur_curves[p].reindex(all_V).to_numpy() * 1e9
@@ -826,7 +772,6 @@ def plot_sweep_iv_multi(paths, outdir, phases=None, out_name="iv_curve_multiseed
     _save(fig, outdir, out_name)
     print(f"  [iv multi] {len(cur_curves)} seeds, {len(Vp)} common voltages, "
           f"band = {band_label}")
-
 
 def plot_iv_aggregated(path, outdir, phases=None, out_name=None):
     """
@@ -872,7 +817,6 @@ def plot_iv_aggregated(path, outdir, phases=None, out_name=None):
     fig.tight_layout(pad=STYLE["tight_pad"])
     _save(fig, outdir, out_name)
     print(f"  [iv aggregated] {len(V)} points from {os.path.basename(path)}")
-
 
 def main():
     ap = argparse.ArgumentParser(
@@ -930,6 +874,10 @@ def main():
     args = ap.parse_args()
 
     apply_style()
+
+    # A command-line --vmax turns on the common-voltage cap used by the I-V
+    # overlay helpers (via _common_V_mask). Without it, curves are shown exactly
+    # as stored (already trimmed at each run's transition voltage upstream).
     if args.vmax is not None:
         STYLE["trim_to_common_V"] = True
         STYLE["common_V_max"] = float(args.vmax)
@@ -991,7 +939,6 @@ def main():
         ap.error("provide the cases CSV, --dist, --case4-iv, --iv, --sampled, "
                  "--caseR-agg, --caseR-iv, --sweep-table, --sweep-iv-multi, "
                  "and/or --iv-aggregated files")
-
 
 if __name__ == "__main__":
     main()

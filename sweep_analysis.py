@@ -25,6 +25,7 @@ import csv
 import numpy as np
 import networkx as nx
 
+
 def make_network_from_config(NanoparticleNetwork, config, seed):
     """Mirror make_network() in optimized_final_system.py so behaviour matches."""
     netcfg = config["network"]
@@ -52,6 +53,7 @@ def make_network_from_config(NanoparticleNetwork, config, seed):
     )
     return net
 
+
 def conductance_matrix(net, activated_nodes, R_MIN=1.0):
     """
     Conductance (Laplacian) matrix over the activated node set, in edge-resistance
@@ -71,6 +73,7 @@ def conductance_matrix(net, activated_nodes, R_MIN=1.0):
             G[ki, ki] += g; G[kj, kj] += g
             G[ki, kj] -= g; G[kj, ki] -= g
     return G, active_list
+
 
 def _edge_currents(net, activated_nodes, V_applied):
     """(total_current, node_potentials, edge_currents) correct for both modes.
@@ -167,6 +170,7 @@ def _edge_currents(net, activated_nodes, V_applied):
             edge_currents[(i, j)] = I_ij
     return total_current, phi, edge_currents
 
+
 def sweep(net, V_start, V_max, V_step, current_frac=0.01,
           G_voltages=None, G_out_prefix=None, effective_resistance=True,
           algebraic_connectivity=True):
@@ -211,6 +215,7 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
         if connected and percolation_V is None:
             percolation_V = Vr
 
+        # --- connected-component structure of the activated subgraph ---
         # Component sizes (in nodes) of the activated subgraph. The largest and
         # second-largest are the classic percolation order parameters: the
         # second-largest tends to peak near the percolation threshold.
@@ -240,6 +245,7 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
             s = mags.sum()
             participation = float((s * s) / np.sum(mags * mags)) if s > 0 else 0.0
             # charge-conserving current = net current leaving the source set,
+            # from the edge-current field (equals net current into the drain set
             # to machine precision). May differ from the solver's own
             # total_current in node-resistance mode (see README).
             src_set = set(net.source_nodes)
@@ -251,11 +257,13 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
                     I_cc -= c
             I_cc = abs(I_cc)
 
+            # --- current-distribution shape statistics ---
             # How concentrated is the flow? These describe the *shape* of the
             # edge-current magnitude distribution at this voltage.
             mean_mag = float(mags.mean())
             max_to_mean = float(max_mag / mean_mag) if mean_mag > 0 else 0.0
             # coefficient of variation: spread relative to mean (0 = uniform flow,
+            # large = a few edges dominate)
             cv_current = float(mags.std() / mean_mag) if mean_mag > 0 else 0.0
             # Gini coefficient: 0 = perfectly even current across edges,
             # 1 = all current in one edge. A clean inequality measure of how
@@ -352,6 +360,7 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
         'n_total_nodes': n_total_nodes, 'n_total_edges': n_total_edges,
     }
 
+
 def write_csv(result, path):
     with open(path, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=result['fieldnames'])
@@ -359,6 +368,7 @@ def write_csv(result, path):
         for row in result['rows']:
             w.writerow(row)
     return path
+
 
 def write_iv_csv(result, path):
     """Focused I-V table: just voltage, current (both conventions), conductance.
@@ -373,6 +383,7 @@ def write_iv_csv(result, path):
                         r['total_current_chargeconserving_A'],
                         r['conductance_S']])
     return path
+
 
 def write_edge_currents_csv(net, result, path, conducting_only=True,
                             voltages=None):
@@ -410,3 +421,4 @@ def write_edge_currents_csv(net, result, path, conducting_only=True,
                             f"{pos[j][0]:.6f}", f"{pos[j][1]:.6f}",
                             f"{c:.8e}", f"{abs(c):.8e}"])
     return path
+

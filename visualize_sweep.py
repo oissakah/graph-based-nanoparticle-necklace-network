@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import sweep_analysis as sa
 
+
 def plot_evolution(result, tag, outpath):
     rows = result['rows']
     V = np.array([r['V'] for r in rows])
@@ -67,6 +68,7 @@ def plot_evolution(result, tag, outpath):
     plt.savefig(outpath, dpi=140, bbox_inches='tight')
     plt.close(fig)
     return outpath
+
 
 def plot_snapshots(net, result, tag, outpath, snap_voltages=None, n_snaps=4):
     rows = result['rows']
@@ -158,6 +160,7 @@ def plot_snapshots(net, result, tag, outpath, snap_voltages=None, n_snaps=4):
     plt.close(fig)
     return outpath
 
+
 def plot_iv_curve(result, tag, outpath, show_chargeconserving=True):
     """Standalone Kirchhoff I-V curve (single panel). Primary curve is the
     solver current (matches optimized_final_system.py); the charge-conserving
@@ -186,6 +189,7 @@ def plot_iv_curve(result, tag, outpath, show_chargeconserving=True):
     fig.savefig(outpath, dpi=200, bbox_inches='tight')
     plt.close(fig)
     return outpath
+
 
 def plot_iv_curve_multiseed(results_by_seed, tag, outpath):
     """
@@ -236,6 +240,7 @@ def plot_iv_curve_multiseed(results_by_seed, tag, outpath):
     plt.close(fig)
     return outpath
 
+
 def plot_structure(result, tag, outpath):
     """Connected-component structure of the activated subgraph vs voltage."""
     rows = result['rows']
@@ -273,6 +278,7 @@ def plot_structure(result, tag, outpath):
     plt.close(fig)
     return outpath
 
+
 def plot_current_distribution(result, tag, outpath):
     """Current-distribution shape vs voltage (how concentrated the flow is)."""
     rows = result['rows']
@@ -308,6 +314,7 @@ def plot_current_distribution(result, tag, outpath):
     plt.close(fig)
     return outpath
 
+
 def plot_spectral(result, tag, outpath):
     """Full-system-matrix spectral metrics vs voltage."""
     rows = result['rows']
@@ -340,6 +347,7 @@ def plot_spectral(result, tag, outpath):
     plt.savefig(outpath, dpi=140, bbox_inches='tight')
     plt.close(fig)
     return outpath
+
 
 def plot_Gmatrix(net, voltage, tag, outpath):
     """log10 conductance-matrix heatmap at one voltage (built fresh here)."""

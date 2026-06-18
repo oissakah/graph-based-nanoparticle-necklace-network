@@ -35,6 +35,7 @@ figure without touching this module.
 """
 
 import os
+# Must be set before ANY numerical library import so BLAS uses 1 thread per
 # worker process and does not fight with multiprocessing for CPU cores.
 os.environ.setdefault("OMP_NUM_THREADS",    "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS","1")
@@ -51,6 +52,9 @@ import numpy as np
 import pandas as pd
 
 from nanoparticle_network import NanoparticleNetwork
+
+# plotting is imported inside main() so worker processes that re-import this
+# module do NOT trigger matplotlib GUI initialisation (causes hangs on Windows).
 
 EDGE_K             = 2.0e10
 NODE_R_SCALE       = 5.0e8
@@ -408,6 +412,8 @@ def build_network(n_junctions, mean_va, sigma_va, seed):
         connection_radius=CONNECTION_RADIUS,
         domain=DOMAIN_SIZE,
     )
+    # The dict variable is named node_Va in our code but the NanoparticleNetwork
+    # API expects the keyword argument 'node_Vth' — do not rename this argument.
     node_Va = {
         "type": "normal",
         "mean": float(mean_va),
@@ -1036,7 +1042,7 @@ def run_snapshots(results, snap_base_dir, case_name,
                 })
         pd.DataFrame(rows).to_csv(
             snap_base_dir / f"edge_currents_snapshots_{tag}.csv", index=False)
-        # node activation states at each snapshot voltage 
+        # node activation states at each snapshot voltage (small companion)
         nrows = []
         for V in snap_voltages:
             for n in net.G.nodes():
@@ -1085,6 +1091,8 @@ def _build_void_network(n, mean_va, sigma_va, seed, void_fraction):
     return net, voids
 
 def main():
+    # that re-import this file on Windows do NOT initialise the matplotlib GUI
+    # backend, which would cause the workers to hang before doing any work.
     import plotting as P
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1572,5 +1580,7 @@ def main():
     print("All cases complete.")
 
 if __name__ == "__main__":
+    # freeze_support() is required on Windows when the script is compiled to
+    # an executable, and is harmless on all other platforms.
     freeze_support()
     main()

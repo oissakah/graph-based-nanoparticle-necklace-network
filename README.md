@@ -1,33 +1,29 @@
-# Nanoparticle Necklace Network Simulator
+# Nanoparticle Network Kirchhoff Solver
 
-Python code for simulating transport through nanoparticle-necklace networks using graph-based Kirchhoff analysis. The model represents junctions as graph nodes, necklace connections as graph edges, and voltage-dependent transport as progressive activation of nodes with activation voltage $V_a$.
+Graph-based simulation tools for studying voltage-activated transport, percolation, current redistribution, and spectral connectivity in nanoparticle necklace networks.
 
-The repository supports two workflows:
+The model represents a nanoparticle necklace film as a spatial graph. Nodes represent junctions with activation voltages `V_a`, and edges represent inter-junction necklace segments with distance-dependent resistance. At each applied voltage, nodes with `V_a <= V` become active and the active source-drain subnetwork is solved using Kirchhoff nodal analysis.
 
-1. **Full parameter sweeps** for publication figures: activation-voltage width, mean activation voltage, junction count, and random void fraction.
-2. **Single-network voltage-sweep diagnostics**: per-voltage connectivity metrics, edge currents, conductance-matrix heatmaps, and network snapshots.
-
-## Main files
+## Repository contents
 
 | File | Purpose |
-|---|---|
-| `nanoparticle_network.py` | Core `NanoparticleNetwork` graph model and Kirchhoff I--V solver. |
-| `parameter_sweep_cases.py` | Runs Cases 1--4 and Case R parameter sweeps and exports CSVs/figures. |
-| `plotting.py` | Plotting helpers used by `parameter_sweep_cases.py`. |
-| `sweep_analysis.py` | Per-voltage network evolution metrics, edge-current reconstruction, and conductance-matrix export. |
-| `spectral_analysis.py` | Effective resistance, algebraic connectivity, and spectral-gap metrics from the full node/edge system matrix. |
-| `visualize_sweep.py` | Diagnostic plots for single-network sweeps. |
-| `run_sweep_analysis.py` | Runs the single-network diagnostic workflow from `optimized_config.yaml`. |
-| `plot_all_cases.py` | Regenerates publication-style summary plots from exported sweep CSVs. |
-| `plot_connectivity_activation.py` | Overlays activated-node and algebraic-connectivity curves from evolution CSVs. |
-| `optimized_config.yaml` | Default production configuration and seed list. |
-| `What I'm doing.txt` | Working notes with commands used to generate manuscript figures. |
+| --- | --- |
+| `nanoparticle_network.py` | Core graph model, activation-voltage sampling, electrode detection, and Kirchhoff solver. |
+| `optimized_config.yaml` | Production configuration for the default network, electrical model, voltage sweep, and seed list. |
+| `sweep_analysis.py` | Per-voltage sweep metrics, conductance-matrix export, edge-current reconstruction, and CSV writers. |
+| `spectral_analysis.py` | Full node+edge system-matrix effective resistance and algebraic-connectivity metrics. |
+| `visualize_sweep.py` | I-V, evolution, snapshot, conductance-matrix, structure, current-distribution, and spectral plots. |
+| `run_sweep_analysis.py` | Main single-seed workflow for tables, I-V curves, snapshots, edge-current CSVs, and G-matrix outputs. |
+| `run_multiseed_iv.py` | Full multiseed workflow that runs all seeds and produces a mean ± standard deviation I-V band. |
+| `parameter_sweep_cases.py` | Publication parameter-sweep driver for activation-voltage width, mean activation voltage, junction count, and void-fraction cases. |
+| `plot_all_cases.py` | Publication plotting script for combined fitted-parameter, distribution, I-V, and case-comparison figures. |
+| `plot_connectivity_activation.py` | Overlay plots for activated-node and algebraic-connectivity evolution CSVs. |
+| `plotting.py` | Plotting helpers used by the parameter-sweep workflow. |
+| `What I'm doing.txt` | Example commands used during figure generation. |
 
-## Requirements
+## Installation
 
-Tested with Python 3.10+.
-
-Install dependencies with:
+Create a Python environment and install the dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -44,167 +40,170 @@ matplotlib
 PyYAML
 ```
 
-## Quick checks before running large sweeps
+## Quick start: single-seed voltage sweep
 
-Compile all scripts:
-
-```bash
-python -m py_compile nanoparticle_network.py sweep_analysis.py spectral_analysis.py visualize_sweep.py run_sweep_analysis.py plot_connectivity_activation.py plot_all_cases.py parameter_sweep_cases.py plotting.py
-```
-
-Run a single-network diagnostic using the first seed in `optimized_config.yaml`:
+Run the default seed listed first in `optimized_config.yaml`:
 
 ```bash
 python run_sweep_analysis.py
 ```
 
-Run a specific seed and output folder:
+Run a specific seed:
+
+```bash
+python run_sweep_analysis.py 51
+```
+
+Run a specific seed and write to a custom output folder:
 
 ```bash
 python run_sweep_analysis.py 51 Results_seed51
 ```
 
-This writes files such as:
+The single-seed workflow produces:
 
-- `sweep_table_seed41_node.csv`
-- `iv_curve_seed41_node.csv`
-- `iv_curve_seed41_node.png`
-- `edge_currents_seed41_node.csv`
-- `edge_currents_snapshots_seed41_node.csv`
-- `evolution_seed41_node.png`
-- `snapshots_seed41_node.png`
-- `Gmatrix_seed41_node_V*.csv/.npy/.png`
+- `sweep_table_seed<seed>_<mode>.csv`
+- `iv_curve_seed<seed>_<mode>.csv`
+- `iv_curve_seed<seed>_<mode>.png`
+- `evolution_seed<seed>_<mode>.png`
+- `snapshots_seed<seed>_<mode>.png`
+- `edge_currents_seed<seed>_<mode>.csv`
+- `edge_currents_snapshots_seed<seed>_<mode>.csv`
+- `Gmatrix_seed<seed>_<mode>_V*.csv`
+- `Gmatrix_seed<seed>_<mode>_V*.npy`
+- `Gmatrix_seed<seed>_<mode>_V*.png`
 
-## Full parameter sweep
+By default, `run_sweep_analysis.py` exports conductance matrices and network snapshots at 1, 2, 6, and 14 V when those voltages fall within the configured voltage range.
 
-Run all sweep cases:
+## Multiseed I-V spread
+
+To run all seeds in `optimized_config.yaml` and generate a mean ± standard deviation I-V band:
 
 ```bash
-python parameter_sweep_cases.py
+python run_multiseed_iv.py
 ```
 
-The script writes timestamped folders under `IV_results/`:
+To choose an output directory:
+
+```bash
+python run_multiseed_iv.py Results_multiseed
+```
+
+The multiseed workflow produces one full sweep table per seed and three aggregate files:
+
+- `iv_curve_multiseed_<mode>.png`
+- `iv_curve_multiseed_<mode>_byseed.csv`
+- `iv_curve_multiseed_<mode>_aggregated.csv`
+
+`run_multiseed_iv.py` computes algebraic connectivity for every seed. This uses dense eigendecomposition and can be memory intensive. If memory errors occur, reduce `N_WORKERS` inside `run_multiseed_iv.py`.
+
+## Configuration
+
+The main settings are stored in `optimized_config.yaml`.
+
+```yaml
+network:
+  n_junctions: 500
+  connection_radius: 0.15
+  domain_size: [1.0, 1.0]
+  left_thresh: 0.15
+  right_thresh: 0.85
+
+threshold_distribution:
+  type: normal
+  mean: 4.0
+  std: 1.0
+  min: 0.0
+  max: 20.0
+
+electrical:
+  edge_k: 2.0e10
+  resistance_model: node
+  node_r_scale: 5.0e8
+  r_floor: 0.5
+
+voltage_sweep:
+  V_start: 0.0
+  V_max: 16.0
+  V_step: 0.5
+
+seeds: [41, 51, 61, 71, 81]
+```
+
+### Activation-voltage sampling
+
+For the normal activation-voltage distribution, the code uses rejection sampling to produce a true truncated normal distribution between `min` and `max`. This avoids the artificial pile-up at the lower bound that occurs when out-of-range values are simply clipped. The activation rule remains:
 
 ```text
-IV_results/
-  parameter_sweep_cases_<timestamp>/
-  case_R_random_voids_<timestamp>/
+node is active when V_a <= V
 ```
 
-### Sweep definitions
+### Node-resistance model
 
-| Case | Parameters |
-|---|---|
-| Case 1 | Vary activation-voltage width, $\sigma = 1, 3, 5, 7$ V, at fixed $N=500$ and $\langle V_a\rangle=8$ V. |
-| Case 2A | Vary mean activation voltage, $\langle V_a\rangle = 4, 6, 8, 10$ V, at fixed $N=500$ and $\sigma=1$ V. |
-| Case 2B | Vary mean activation voltage, $\langle V_a\rangle = 4, 6, 8, 10$ V, at fixed $N=500$ and $\sigma=5$ V. |
-| Case 3 | 2D sweep over junction count $N=200,400,600,800$ and mean activation voltage $\langle V_a\rangle = 4,6,8,10$ V, at fixed $\sigma=3$ V. |
-| Case 4 | Vary junction count $N=200,400,600,800$ at fixed $\langle V_a\rangle=6$ V and $\sigma=3$ V. |
-| Case R | Random void-fraction sweep, $f_v = 0.00,0.05,0.10,0.15,0.20,0.25$, at fixed $N=500$, $\langle V_a\rangle=6$ V, and $\sigma=3$ V. |
-
-All cases use the seeds listed in `optimized_config.yaml` unless that file is absent, in which case the code falls back to `[41, 51, 61, 71, 81]`.
-
-## Publication figure commands
-
-After running `parameter_sweep_cases.py`, copy or run commands from the generated output folders as needed. The following command matches the currently uploaded `plot_all_cases.py` interface:
-
-```bash
-python plot_all_cases.py all_cases_VT_zeta.csv \
-  --dist case1_distribution_data.csv case2a_distribution_data.csv case2b_distribution_data.csv \
-  --iv case1_VT_zeta_iv_data.csv case2a_VT_zeta_iv_data.csv \
-  --iv-seed 41 \
-  --case4-iv case4_VT_zeta_iv_data.csv \
-  --caseR-agg caseR_VT_zeta_aggregated.csv \
-  --caseR-iv caseR_iv_random_voids_data.csv \
-  --sweep-table sweep_table_seed41_node.csv \
-  --outdir plots
-```
-
-Optional flags supported by `plot_all_cases.py` include:
-
-```bash
---only case_4
---sampled case1_sampled_va.csv
---sweep-iv-multi iv_curve_spread_allseeds_node_byseed.csv
---iv-aggregated iv_curve_spread_allseeds_node_aggregated.csv
---vmax 12
-```
-
-The older commands in `What I'm doing.txt` that call `plot_all_cases_pub.py` or `plot_all_cases_dummy_dashed.py` require those separate scripts. They are not part of the current uploaded code bundle unless you add them to the repository.
-
-## Connectivity and activation overlays
-
-Example commands using exported evolution CSVs:
-
-```bash
-python plot_connectivity_activation.py \
-  evolution_case1_N500_mean8_sigma1_seed41.csv \
-  evolution_case1_N500_mean8_sigma3_seed41.csv \
-  evolution_case1_N500_mean8_sigma5_seed41.csv \
-  evolution_case1_N500_mean8_sigma7_seed41.csv \
-  --group case1 --outdir plots_connectactivate --vmax 12
-```
-
-```bash
-python plot_connectivity_activation.py \
-  evolution_case2a_N500_mean4_sigma1_seed41.csv \
-  evolution_case2a_N500_mean6_sigma1_seed41.csv \
-  evolution_case2a_N500_mean8_sigma1_seed41.csv \
-  evolution_case2a_N500_mean10_sigma1_seed41.csv \
-  --group case2a --outdir plots_connectactivate --vmax 12
-```
-
-```bash
-python plot_connectivity_activation.py \
-  evolution_case4_N200_mean6_sigma3_seed41.csv \
-  evolution_case4_N400_mean6_sigma3_seed41.csv \
-  evolution_case4_N600_mean6_sigma3_seed41.csv \
-  evolution_case4_N800_mean6_sigma3_seed41.csv \
-  --group case4 --outdir plots_connectactivate --vmax 12
-```
-
-```bash
-python plot_connectivity_activation.py \
-  evolution_caseR_N500_mean6_sigma3_seed41_fv0.00.csv \
-  evolution_caseR_N500_mean6_sigma3_seed41_fv0.10.csv \
-  evolution_caseR_N500_mean6_sigma3_seed41_fv0.15.csv \
-  evolution_caseR_N500_mean6_sigma3_seed41_fv0.20.csv \
-  --group caseR --outdir plots_connectactivate --vmax 12
-```
-
-## Model notes
-
-- Nodes are junctions in the nanoparticle-necklace network.
-- Edges are necklace connections between junctions.
-- Activation voltages are sampled from distributions and stored internally under the legacy node key `Vth`; manuscript text and plot labels use activation voltage $V_a$.
-- Edge resistance is proportional to inter-node distance: `R_edge = edge_k * distance`.
-- Node resistance can be enabled with `resistance_model: node`, using `R_node = node_r_scale * max(V_a, r_floor)`.
-- The Kirchhoff solver uses the active subgraph at each applied voltage and solves for source/drain currents.
-- No simple-path enumeration is used in the current analysis workflow.
-
-## Important caveats
-
-1. **Runtime:** Full parameter sweeps can be slow, especially for node-resistance mode and algebraic-connectivity calculations.
-2. **Current convention:** In node-resistance mode, the evolution table reports both `total_current_A` and `total_current_chargeconserving_A`. The fitted $V_T$ and $\zeta$ are based on the exported solver current.
-3. **Case R spectral metrics:** For speed, some Case R workers may skip algebraic connectivity. When this happens, `plot_connectivity_activation.py` skips missing/NaN algebraic-connectivity curves instead of failing.
-4. **Generated outputs:** Do not commit large `IV_results/`, `Results/`, or plot-output folders unless intentionally archiving a result set.
-
-## Suggested repository layout
+When `resistance_model: node`, each internal node is split into an input and output terminal connected by a node resistance:
 
 ```text
-nanoparticle-necklace-network/
-  README.md
-  requirements.txt
-  .gitignore
-  optimized_config.yaml
-  nanoparticle_network.py
-  parameter_sweep_cases.py
-  plotting.py
-  sweep_analysis.py
-  spectral_analysis.py
-  visualize_sweep.py
-  run_sweep_analysis.py
-  plot_all_cases.py
-  plot_connectivity_activation.py
-  What I'm doing.txt
+R_node = node_r_scale * max(V_a, r_floor)
 ```
+
+The `r_floor` parameter prevents very low activation-voltage nodes from producing nearly zero node resistance. It affects node resistance only; it does not change the activation threshold.
+
+## Main quantities in the sweep table
+
+`sweep_analysis.py` writes one row per voltage step. Important columns include:
+
+| Column | Meaning |
+| --- | --- |
+| `V` | Applied voltage. |
+| `activated_nodes` | Nodes satisfying `V_a <= V`. |
+| `activated_edges` | Edges whose endpoints are both activated. |
+| `conducting_nodes` | Nodes in the active source-drain conducting set returned by the Kirchhoff solve. |
+| `conducting_edges` | Edges carrying nonzero current. |
+| `source_drain_connected` | Boolean indicator for an active source-drain bridge. |
+| `total_current_A` | Solver current from the Kirchhoff nodal analysis. |
+| `total_current_chargeconserving_A` | Current reconstructed from edge currents. Useful for checking conservation. |
+| `conductance_S` | `total_current_A / V`. |
+| `backbone_edges` | Number of current-carrying edges above 1% of the maximum edge current at that voltage. |
+| `participation_ratio` | Effective number of edges sharing the current. |
+| `largest_cc_fraction` | Fraction of activated nodes in the largest activated component. |
+| `current_gini` | Inequality of current distribution across conducting edges. |
+| `current_top10_fraction` | Fraction of current carried by the top 10% of conducting edges. |
+| `effective_resistance_ohm` | Full-system source-drain effective resistance. |
+| `algebraic_connectivity` | Fiedler value of the full active node+edge system matrix. |
+| `spectral_gap_ratio` | Algebraic connectivity normalized by the largest eigenvalue. |
+
+## Conductance matrix outputs
+
+At selected voltages, `sweep_analysis.py` exports the active edge-resistance Laplacian:
+
+- dense matrix: `Gmatrix_<tag>_V*.npy`
+- long-form CSV: `Gmatrix_<tag>_V*.csv`
+- node-index sidecar: `Gmatrix_<tag>_V*_nodeindex.csv`
+- heatmap: `Gmatrix_<tag>_V*.png`
+
+The G-matrix heatmap is built from edge resistances only. Node resistors are handled in the Kirchhoff solve and spectral metrics but are not included in the off-diagonal edge-only heatmap.
+
+## Publication figure workflow
+
+The parameter-sweep workflow is handled by `parameter_sweep_cases.py` and the publication plotting scripts. Example commands are listed in `What I'm doing.txt`.
+
+Typical plotting commands include:
+
+```bash
+python plot_all_cases.py all_cases_VT_zeta.csv --dist case1_distribution_data.csv case2a_distribution_data.csv case2b_distribution_data.csv --iv case1_VT_zeta_iv_data.csv case2a_VT_zeta_iv_data.csv --iv-seed 41 --case4-iv case4_VT_zeta_iv_data.csv --caseR-agg caseR_VT_zeta_aggregated.csv --caseR-iv caseR_iv_random_voids_data.csv --sweep-table sweep_table_seed41_node.csv --outdir plots
+```
+
+```bash
+python plot_connectivity_activation.py evolution_case4_N200_mean6_sigma3_seed41.csv evolution_case4_N400_mean6_sigma3_seed41.csv evolution_case4_N600_mean6_sigma3_seed41.csv evolution_case4_N800_mean6_sigma3_seed41.csv --group case4 --outdir plots_connectactivate --vmax 12
+```
+
+## Notes and limitations
+
+- The publication workflow uses the Kirchhoff solver. The legacy path-enumeration/BFS utilities in `nanoparticle_network.py` are retained for comparison, but the per-voltage analysis does not use simple-path enumeration.
+- Algebraic connectivity is informative for fragmented or voided networks but can be nearly flat in dense baseline networks.
+- The multiseed shaded band uses five seeds by default. Treat ± standard deviation as an indication of seed-to-seed variability, not as a formal confidence interval.
+- Generated outputs are excluded from version control through `.gitignore`.
+
+## Recommended citation language
+
+If this repository is used in a manuscript, describe it as a graph-based Kirchhoff nodal-analysis framework for activation-voltage-gated nanoparticle necklace networks. The transport exponent is reported as `zeta` (`\zeta`) throughout.

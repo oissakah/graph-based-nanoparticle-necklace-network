@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import spsolve
 
+
 class NanoparticleNetwork:
     def __init__(self, n_junctions=50, connection_radius=0.2, domain=(1.0, 1.0)):
         """
@@ -70,6 +71,7 @@ class NanoparticleNetwork:
         # Determine if using distribution or discrete values
         use_distribution = isinstance(node_Vth, dict)
 
+        # Add nodes with positions and threshold voltage
         for i in range(self.n_junctions):
             if use_distribution:
                 Vth = self._sample_Vth_distribution(node_Vth)
@@ -101,6 +103,7 @@ class NanoparticleNetwork:
                                   R_edge=R_edge,
                                   activated=False)  # Track if edge is activated
 
+        # Remove nodes with degree < 2 (not true junctions)
         # Junctions must connect at least 2 nanoparticles
         # Iterate until no more nodes to remove (removing nodes can create new degree-1 nodes)
         total_removed = 0
@@ -112,8 +115,10 @@ class NanoparticleNetwork:
             total_removed += len(nodes_to_remove)
 
         if total_removed > 0:
+            # Update positions array to only include remaining nodes
             remaining_nodes = list(self.G.nodes())
             self.positions = self.positions[remaining_nodes]
+            # Relabel nodes to be contiguous (0, 1, 2, ...)
             mapping = {old_node: new_node for new_node, old_node in enumerate(remaining_nodes)}
             self.G = nx.relabel_nodes(self.G, mapping)
             self.n_junctions = self.G.number_of_nodes()
@@ -171,16 +176,16 @@ class NanoparticleNetwork:
             shape = dist_config.get('shape', 2.0)  # k parameter
             scale = dist_config.get('scale', 8.0)  # lambda parameter
             return scale * np.random.weibull(shape)
-        
+
         elif dist_type == 'bimodal':
             # Mixture of two distributions
             weight = dist_config.get('weight', 0.5)
             mode1 = dist_config.get('mode1')
             mode2 = dist_config.get('mode2')
-    
+
             if mode1 is None or mode2 is None:
                 raise ValueError("Bimodal distribution requires 'mode1' and 'mode2'.")
-    
+
             if np.random.rand() < weight:
                 return self._sample_Vth_distribution(mode1)
             else:
@@ -257,7 +262,7 @@ class NanoparticleNetwork:
         """
         Calculate total resistance and current through the percolation path.
 
-        The path consists of nodes (junctions) and edges.
+        The path consists of nodes (junctions) and edges (Au nanoparticles).
         Total resistance = sum of edge resistances along the path.
 
         The effective voltage drop available for current is:
@@ -292,6 +297,7 @@ class NanoparticleNetwork:
             edge_data = self.G[node1][node2]
             total_resistance += edge_data['R_edge']
 
+
         if tunneling_effects:
         # Find the maximum threshold voltage in the path (the limiting barrier)
             path_Vth_max = max(self.G.nodes[node]['Vth'] for node in path)
@@ -299,10 +305,9 @@ class NanoparticleNetwork:
             path_Vth_max = 0.0
 
         # Effective voltage is applied voltage minus threshold barrier
-        ##############################################################
         V_effective = voltage - path_Vth_max
-        ##############################################################
 
+        # Calculate current: I = V_effective / R_total
         if total_resistance > 0 and V_effective > 0:
             current = V_effective / total_resistance
         else:
@@ -335,25 +340,30 @@ class NanoparticleNetwork:
         fig, ax = plt.subplots(1, 1, figsize=(12, 10))
         pos = self.positions
 
+        # Draw all edges in light gray
         for i, j in self.G.edges():
             ax.plot([pos[i][0], pos[j][0]], [pos[i][1], pos[j][1]],
                    'lightgray', alpha=0.2, linewidth=0.5, zorder=1)
 
+        # Draw activated edges in blue
         for edge in activated_edges:
             i, j = edge
             ax.plot([pos[i][0], pos[j][0]], [pos[i][1], pos[j][1]],
                    'blue', alpha=0.6, linewidth=1.5, zorder=2)
 
+        # Draw percolation path if found (in red)
         if percolation_path is not None:
             for k in range(len(percolation_path) - 1):
                 i, j = percolation_path[k], percolation_path[k+1]
                 ax.plot([pos[i][0], pos[j][0]], [pos[i][1], pos[j][1]],
                        'red', alpha=0.9, linewidth=3, zorder=4)
 
+        # Draw all nodes
         all_nodes = list(self.G.nodes())
         ax.scatter(pos[all_nodes, 0], pos[all_nodes, 1],
                   c='lightgray', s=20, zorder=3, edgecolors='black', linewidth=0.3)
 
+        # Draw activated nodes
         if activated_nodes:
             activated_list = list(activated_nodes)
             ax.scatter(pos[activated_list, 0], pos[activated_list, 1],
@@ -365,6 +375,7 @@ class NanoparticleNetwork:
             ax.scatter(path_pos[:, 0], path_pos[:, 1],
                       c='orange', s=80, zorder=5, edgecolors='red', linewidth=1.5)
 
+        # Draw source and drain nodes
         if self.source_nodes:
             source_pos = pos[self.source_nodes]
             ax.scatter(source_pos[:, 0], source_pos[:, 1],
@@ -377,6 +388,7 @@ class NanoparticleNetwork:
                       c='red', s=120, marker='s', label='Drains', zorder=6,
                       edgecolors='darkred', linewidth=2)
 
+        # Set title based on percolation status
         if percolation_path is not None:
             ax.set_title(f'V = {voltage:.3f}V - PERCOLATION FOUND!\n' +
                         f'{len(activated_nodes)} nodes activated, Path length: {len(percolation_path)}',
@@ -391,10 +403,12 @@ class NanoparticleNetwork:
         ax.legend(fontsize=9)
         plt.tight_layout()
 
+        # Save figure
         filename = f"{image_dir}/step_{step_num:04d}_V_{voltage:.3f}V.png"
         plt.savefig(filename, dpi=150, bbox_inches='tight')
         plt.close(fig)
 
+        # Print progress every 10 steps
         if step_num % 10 == 0:
             print(f"  Saved image: {filename}")
 
@@ -445,6 +459,7 @@ class NanoparticleNetwork:
             while queue:
                 current = queue.popleft()
 
+                # Check if we reached a drain
                 if current in self.drain_nodes:
                     # Reconstruct path
                     path = []
@@ -454,6 +469,7 @@ class NanoparticleNetwork:
                         node = parent[node]
                     path = path[::-1]  # Reverse to get source -> drain
 
+                    # Add intermediate nodes to used_nodes
                     for node in path:
                         if node not in self.source_nodes and node not in self.drain_nodes:
                             used_nodes.add(node)
@@ -472,6 +488,7 @@ class NanoparticleNetwork:
                     if neighbor not in activated_nodes:
                         continue
 
+                    # Check if edge is activated
                     edge = (current, neighbor) if (current, neighbor) in activated_edges else (neighbor, current)
                     if edge in activated_edges:
                         visited.add(neighbor)
@@ -716,12 +733,14 @@ class NanoparticleNetwork:
             num_paths = len(paths)
             num_paths_list.append(num_paths)
 
+            # Calculate total current from all parallel paths
             total_current = 0.0
             total_conductance = 0.0
             path_info = []
 
             if num_paths > 0:
                 for path in paths:
+                    # Calculate resistance and current for this path
                     path_R, path_I = self._calculate_path_current(path, V, tunneling_effects=tunneling_effects)
                     total_current += path_I
 
@@ -840,7 +859,9 @@ class NanoparticleNetwork:
         )
 
         if not has_node_resistance:
+            # ----------------------------------------------------------------
             # Edge-only model: standard N×N nodal admittance matrix
+            # ----------------------------------------------------------------
             G_mat = lil_matrix((N, N), dtype=float)
             for (i, j) in G_sub.edges():
                 if i not in local_idx or j not in local_idx:
@@ -883,15 +904,16 @@ class NanoparticleNetwork:
             return total_current, node_potentials
 
         else:
+            # ----------------------------------------------------------------
             # Node-resistance model: node-splitting — each internal node i
             # becomes i_in (row 2k) and i_out (row 2k+1) connected by R_node.
             # Electrodes are NOT split: they get a single row at offset 2*N_int.
-            #
             # Edge orientation: BFS from active sources determines which end of
             # each undirected edge is "source-side".  We stamp ONE symmetric
             # conductance element source_out ↔ drain_in per edge so that
             # current enters each node at i_in (before R_node) and exits at
             # i_out (after R_node), regardless of graph-node-label order.
+            # ----------------------------------------------------------------
             all_electrodes = set(active_sources) | set(active_drains)
             internal_nodes = [n for n in working_list if n not in all_electrodes]
             electrode_nodes = [n for n in working_list if n in all_electrodes]
