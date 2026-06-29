@@ -17,7 +17,7 @@ The model represents a nanoparticle necklace film as a spatial graph. Nodes repr
 | `run_multiseed_iv.py` | Full multiseed workflow that runs all seeds and produces a mean ± standard deviation I-V band. |
 | `parameter_sweep_cases.py` | Publication parameter-sweep driver for activation-voltage width, mean activation voltage, junction count, and void-fraction cases. |
 | `plotting.py` | Plotting helpers used by the parameter-sweep workflow. |
-| `What I'm doing.txt` | Example commands used during figure generation. |
+| `publication_figures.py` | For producing publication figures. |
 
 ## Installation
 
