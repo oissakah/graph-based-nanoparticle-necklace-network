@@ -162,13 +162,13 @@ The `r_floor` parameter prevents very low activation-voltage nodes from producin
 | `total_current_chargeconserving_A` | Current reconstructed from edge currents. Useful for checking conservation. |
 | `conductance_S` | `total_current_A / V`. |
 | `backbone_edges` | Number of current-carrying edges above 1% of the maximum edge current at that voltage. |
-| `participation_ratio` | Effective number of edges sharing the current. |
 | `largest_cc_fraction` | Fraction of activated nodes in the largest activated component. |
 | `current_gini` | Inequality of current distribution across conducting edges. |
 | `current_top10_fraction` | Fraction of current carried by the top 10% of conducting edges. |
 | `effective_resistance_ohm` | Full-system source-drain effective resistance. |
 | `algebraic_connectivity` | Fiedler value of the full active node+edge system matrix. |
 | `spectral_gap_ratio` | Algebraic connectivity normalized by the largest eigenvalue. |
+| `publication_figures` | Generates published figures. |
 
 ## Conductance matrix outputs
 
@@ -183,17 +183,25 @@ The G-matrix heatmap is built from edge resistances only. Node resistors are han
 
 ## Publication figure workflow
 
-The parameter-sweep workflow is handled by `parameter_sweep_cases.py` and the publication plotting scripts. Example commands are listed in `What I'm doing.txt`.
+The parameter-sweep workflow is handled by `parameter_sweep_cases.py` and the publication plotting scripts.
 
 Typical plotting commands include:
 
 ```bash
-python plot_all_cases.py all_cases_VT_zeta.csv --dist case1_distribution_data.csv case2a_distribution_data.csv case2b_distribution_data.csv --iv case1_VT_zeta_iv_data.csv case2a_VT_zeta_iv_data.csv --iv-seed 41 --case4-iv case4_VT_zeta_iv_data.csv --caseR-agg caseR_VT_zeta_aggregated.csv --caseR-iv caseR_iv_random_voids_data.csv --sweep-table sweep_table_seed41_node.csv --outdir plots
+python publication_figures.py all_cases_VT_zeta.csv --dist case1_distribution_data.csv case2a_distribution_data.csv case2b_distribution_data.csv --iv case1_VT_zeta_iv_data.csv case2a_VT_zeta_iv_data.csv --iv-seed 41 --case4-iv case4_VT_zeta_iv_data.csv --caseR-agg caseR_VT_zeta_aggregated.csv --caseR-iv caseR_iv_random_voids_data.csv --sweep-table sweep_table_seed41_node.csv --outdir plots
+
+python publication_figures.py all_cases_VT_zeta.csv --dist case1_distribution_data_with_dummy.csv case2a_distribution_data.csv case2b_distribution_data.csv --iv case1_VT_zeta_iv_data_with_dummy.csv case2a_VT_zeta_iv_data.csv --iv-seed 41 --case4-iv case4_VT_zeta_iv_data.csv --caseR-agg caseR_VT_zeta_aggregated.csv --caseR-iv caseR_iv_random_voids_data.csv --sweep-table sweep_table_seed41_node.csv --outdir plots 
+
+python publication_figures.py --evolution evolution_caseR_N500_mean6_sigma3_seed41_fv0.00.csv evolution_caseR_N500_mean6_sigma3_seed41_fv0.10.csv evolution_caseR_N500_mean6_sigma3_seed41_fv0.15.csv evolution_caseR_N500_mean6_sigma3_seed41_fv0.20.csv --evo-group caseR --outdir plots_connectactivate 
+
+python publication_figures.py --evolution evolution_case1_N500_mean8_sigma1_seed41.csv evolution_case1_N500_mean8_sigma3_seed41.csv evolution_case1_N500_mean8_sigma5_seed41.csv evolution_case1_N500_mean8_sigma7_seed41.csv --evo-group case1 --outdir plots_connectactivate
+
+python publication_figures.py --evolution evolution_case2a_N500_mean4_sigma1_seed41.csv evolution_case2a_N500_mean6_sigma1_seed41.csv evolution_case2a_N500_mean8_sigma1_seed41.csv evolution_case2a_N500_mean10_sigma1_seed41.csv --evo-group case2a --outdir plots_connectactivate 
+
+python publication_figures.py --evolution evolution_case4_N200_mean6_sigma3_seed41.csv evolution_case4_N400_mean6_sigma3_seed41.csv evolution_case4_N600_mean6_sigma3_seed41.csv evolution_case4_N800_mean6_sigma3_seed41.csv --evo-group case4 --outdir plots_connectactivate
+
 ```
 
-```bash
-python plot_connectivity_activation.py evolution_case4_N200_mean6_sigma3_seed41.csv evolution_case4_N400_mean6_sigma3_seed41.csv evolution_case4_N600_mean6_sigma3_seed41.csv evolution_case4_N800_mean6_sigma3_seed41.csv --group case4 --outdir plots_connectactivate --vmax 12
-```
 
 ## Notes and limitations
 
