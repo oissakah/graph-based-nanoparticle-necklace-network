@@ -10,20 +10,68 @@ Outputs you can plot yourself:
      G_ij entries plus a dense .npy and a node-index sidecar, so you can render
      the heatmap however you like. visualize_sweep.py also writes a PNG.
 
-Works for BOTH edge-only (resistance_model: edge) and node-resistance
-(resistance_model: node) modes. Edge currents are reconstructed from the node
-potentials returned by NanoparticleNetwork._solve_kirchhoff, accounting for the
-node-splitting used in node-resistance mode. Verified against Kirchhoff's current
-law (net current into every internal node ~1e-16 A).
+Works for BOTH edge-only (resistance_model: edge) and fixed junction-resistance
+(resistance_model: node) modes. Total current and every edge current come from
+one canonical Kirchhoff solution; source/drain imbalance is reported explicitly.
 
-No simple-path enumeration is used. The only graph traversal is connectivity
-(networkx.node_connected_component), which is what "is source linked to drain"
-genuinely requires.
+No simple-path enumeration is used. Connectivity identifies the first spanning
+state, and one unit-capacity max-flow calculation at that voltage measures the
+number of edge-disjoint source-to-drain pathways.
 """
 
 import csv
 import numpy as np
 import networkx as nx
+
+
+def count_edge_disjoint_pathways(net, activated_nodes):
+    """Count independent activated source-to-drain channels.
+
+    The returned integer is the maximum number of source-to-drain paths that
+    do not share an internal graph edge. By max-flow/min-cut duality it is also
+    the unit-capacity source-drain minimum-cut size. Electrode-to-boundary-node
+    links are assigned effectively infinite capacity, so the count measures
+    bottlenecks inside the activated nanonecklace rather than at the artificial
+    super-source/super-drain connections.
+
+    This is deliberately *not* a count of every simple path: looped networks
+    can contain an enormous number of overlapping simple paths that do not
+    represent independent transport channels.
+    """
+    active = set(activated_nodes)
+    sources = [node for node in net.source_nodes if node in active]
+    drains = [node for node in net.drain_nodes if node in active]
+    if not sources or not drains:
+        return 0
+
+    graph = net.G.subgraph(active)
+    if graph.number_of_edges() == 0:
+        return 0
+
+    super_source = ("__electrode__", "source")
+    super_drain = ("__electrode__", "drain")
+    flow_graph = nx.DiGraph()
+    flow_graph.add_nodes_from(graph.nodes())
+
+    # Reciprocal unit-capacity arcs are the standard flow representation of
+    # an undirected unit-capacity edge. Opposing flow can always be cancelled,
+    # leaving the same integral edge-disjoint-path count.
+    for node_i, node_j in graph.edges():
+        flow_graph.add_edge(node_i, node_j, capacity=1)
+        flow_graph.add_edge(node_j, node_i, capacity=1)
+
+    electrode_capacity = max(1, graph.number_of_edges() + 1)
+    for node in sources:
+        flow_graph.add_edge(super_source, node,
+                            capacity=electrode_capacity)
+    for node in drains:
+        flow_graph.add_edge(node, super_drain,
+                            capacity=electrode_capacity)
+
+    value = nx.maximum_flow_value(
+        flow_graph, super_source, super_drain, capacity="capacity",
+        flow_func=nx.algorithms.flow.shortest_augmenting_path)
+    return int(round(float(value)))
 
 
 def make_network_from_config(NanoparticleNetwork, config, seed):
@@ -38,13 +86,13 @@ def make_network_from_config(NanoparticleNetwork, config, seed):
     )
     net.generate_network(
         seed=int(seed),
-        node_Vth={
+        node_Va={
             "type": thcfg["type"], "mean": float(thcfg["mean"]),
             "std": float(thcfg["std"]), "min": float(thcfg["min"]),
             "max": float(thcfg["max"]),
         },
         edge_k=float(elec["edge_k"]),
-        node_r_scale=float(elec["node_r_scale"])
+        node_resistance_ohm=float(elec.get("node_resistance_ohm", 0.0))
         if elec.get("resistance_model", "edge") == "node" else 0.0,
     )
     net.identify_sources_drains(
@@ -54,121 +102,23 @@ def make_network_from_config(NanoparticleNetwork, config, seed):
     return net
 
 
-def conductance_matrix(net, activated_nodes, R_MIN=1.0):
+def conductance_matrix(net, activated_nodes):
     """
-    Conductance (Laplacian) matrix over the activated node set, in edge-resistance
-    terms — exactly what plot_G_matrix_heatmap in the production script builds.
-    Node resistors are a separate element and are NOT in this off-diagonal
-    structure, so the heatmap is identical in both modes; currents differ and are
-    handled separately.
+    Full active-circuit Laplacian used by the solver. In junction-resistance mode
+    each edge conductance includes half the fixed resistance of each internal
+    endpoint, so this matrix and the current calculation are exactly consistent.
     """
-    active_list = sorted(activated_nodes)
-    local_idx = {v: k for k, v in enumerate(active_list)}
-    N = len(active_list)
-    G = np.zeros((N, N))
-    for (i, j) in net.G.edges():
-        if i in local_idx and j in local_idx:
-            g = 1.0 / max(net.G[i][j]['R_edge'], R_MIN)
-            ki, kj = local_idx[i], local_idx[j]
-            G[ki, ki] += g; G[kj, kj] += g
-            G[ki, kj] -= g; G[kj, ki] -= g
-    return G, active_list
+    system = net.build_active_laplacian(activated_nodes)
+    if system is None:
+        return np.zeros((0, 0)), []
+    return system["laplacian"].toarray(), system["nodes"]
 
 
 def _edge_currents(net, activated_nodes, V_applied):
-    """(total_current, node_potentials, edge_currents) correct for both modes.
-    edge_currents: {(i, j): signed current}, +ve means flow i->j."""
-    from scipy.sparse import lil_matrix
-    from scipy.sparse.linalg import spsolve
-
-    total_current, phi = net._solve_kirchhoff(activated_nodes, V_applied)
-    edge_currents = {}
-    if not phi:
-        return total_current, phi, edge_currents
-
-    R_MIN = 1.0
-    working = set(phi.keys())
-    G_sub = net.G.subgraph(working)
-    has_node_resistance = any(net.G.nodes[n].get('R_node', 0.0) > 0.0 for n in working)
-
-    if not has_node_resistance:
-        for (i, j) in G_sub.edges():
-            if i in phi and j in phi:
-                R_e = max(net.G[i][j]['R_edge'], R_MIN)
-                I_ij = (phi[i] - phi[j]) / R_e
-                if abs(I_ij) > 1e-30:
-                    edge_currents[(i, j)] = I_ij
-        return total_current, phi, edge_currents
-
-    # Node-resistance: rebuild the split system to recover in/out terminal
-    # potentials, then take current across the EDGE element only.
-    active_sources = [n for n in net.source_nodes if n in working]
-    active_drains = [n for n in net.drain_nodes if n in working]
-    all_electrodes = set(active_sources) | set(active_drains)
-    internal_nodes = [n for n in sorted(working) if n not in all_electrodes]
-    electrode_nodes = [n for n in sorted(working) if n in all_electrodes]
-    N_int = len(internal_nodes)
-    int_idx = {n: i for i, n in enumerate(internal_nodes)}
-    el_idx = {n: i for i, n in enumerate(electrode_nodes)}
-    MAT_SIZE = 2 * N_int + len(electrode_nodes)
-
-    def row_in(n):
-        return 2 * int_idx[n] if n in int_idx else 2 * N_int + el_idx[n]
-
-    def row_out(n):
-        return 2 * int_idx[n] + 1 if n in int_idx else 2 * N_int + el_idx[n]
-
-    bfs_depth = {n: 999 for n in working}
-    q = list(active_sources)
-    for s in active_sources:
-        bfs_depth[s] = 0
-    h = 0
-    while h < len(q):
-        cur = q[h]; h += 1
-        for nbr in G_sub.neighbors(cur):
-            if nbr in bfs_depth and bfs_depth[nbr] == 999:
-                bfs_depth[nbr] = bfs_depth[cur] + 1
-                q.append(nbr)
-
-    G_mat = lil_matrix((MAT_SIZE, MAT_SIZE), dtype=float)
-    for n in internal_nodes:
-        g_n = 1.0 / max(net.G.nodes[n].get('R_node', 0.0), R_MIN)
-        ri, ro = row_in(n), row_out(n)
-        G_mat[ri, ri] += g_n; G_mat[ro, ro] += g_n
-        G_mat[ri, ro] -= g_n; G_mat[ro, ri] -= g_n
-    edge_orientation = {}
-    for (i, j) in G_sub.edges():
-        g_e = 1.0 / max(net.G[i][j]['R_edge'], R_MIN)
-        if bfs_depth[i] <= bfs_depth[j]:
-            src_n, drn_n = i, j
-        else:
-            src_n, drn_n = j, i
-        edge_orientation[(i, j)] = (src_n, drn_n)
-        rso, rdi = row_out(src_n), row_in(drn_n)
-        G_mat[rso, rso] += g_e; G_mat[rdi, rdi] += g_e
-        G_mat[rso, rdi] -= g_e; G_mat[rdi, rso] -= g_e
-    b = np.zeros(MAT_SIZE)
-    for src in active_sources:
-        for row in (row_in(src), row_out(src)):
-            G_mat[row, :] = 0; G_mat[row, row] = 1.0; b[row] = V_applied
-    for drn in active_drains:
-        for row in (row_in(drn), row_out(drn)):
-            G_mat[row, :] = 0; G_mat[row, row] = 1.0; b[row] = 0.0
-    try:
-        psi = spsolve(G_mat.tocsr(), b)
-        if not np.all(np.isfinite(psi)):
-            return total_current, phi, {}
-    except Exception:
-        return total_current, phi, {}
-
-    for (i, j) in G_sub.edges():
-        src_n, drn_n = edge_orientation[(i, j)]
-        R_e = max(net.G[i][j]['R_edge'], R_MIN)
-        I = (psi[row_out(src_n)] - psi[row_in(drn_n)]) / R_e
-        I_ij = I if src_n == i else -I
-        if abs(I_ij) > 1e-30:
-            edge_currents[(i, j)] = I_ij
-    return total_current, phi, edge_currents
+    """Return canonical total current, node potentials, and signed edge currents."""
+    solution = net.solve_active_network(activated_nodes, V_applied)
+    return (solution["total_current_A"], solution["node_potentials"],
+            solution["edge_currents"])
 
 
 def sweep(net, V_start, V_max, V_step, current_frac=0.01,
@@ -192,13 +142,15 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
 
     G_voltages_set = set(round(float(v), 10) for v in (G_voltages or []))
     rows, edge_currents_by_V, percolation_V = [], {}, None
+    percolation_pathways = 0
+    percolation_active_nodes = 0
     n_total_nodes = net.G.number_of_nodes()
     n_total_edges = net.G.number_of_edges()
 
     V = V_start
     while V <= V_max + 1e-10:
         Vr = round(V, 10)
-        activated_nodes = {n for n in net.G.nodes() if net.G.nodes[n]['Vth'] <= Vr}
+        activated_nodes = net.activated_nodes(Vr)
         activated_edges = [(i, j) for i, j in net.G.edges()
                            if i in activated_nodes and j in activated_nodes]
 
@@ -214,6 +166,9 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
         connected = len(src_comp & drn_comp) > 0
         if connected and percolation_V is None:
             percolation_V = Vr
+            percolation_pathways = count_edge_disjoint_pathways(
+                net, activated_nodes)
+            percolation_active_nodes = len(activated_nodes)
 
         # --- connected-component structure of the activated subgraph ---
         # Component sizes (in nodes) of the activated subgraph. The largest and
@@ -235,7 +190,10 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
         else:
             mean_finite_cc = 0.0
 
-        total_current, phi, edge_currents = _edge_currents(net, activated_nodes, Vr)
+        solution = net.solve_active_network(activated_nodes, Vr)
+        total_current = solution["total_current_A"]
+        phi = solution["node_potentials"]
+        edge_currents = solution["edge_currents"]
         edge_currents_by_V[Vr] = edge_currents
 
         if edge_currents:
@@ -244,19 +202,6 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
             backbone_edges = int(np.sum(mags >= current_frac * max_mag))
             s = mags.sum()
             participation = float((s * s) / np.sum(mags * mags)) if s > 0 else 0.0
-            # charge-conserving current = net current leaving the source set,
-            # from the edge-current field (equals net current into the drain set
-            # to machine precision). May differ from the solver's own
-            # total_current in node-resistance mode (see README).
-            src_set = set(net.source_nodes)
-            I_cc = 0.0
-            for (i, j), c in edge_currents.items():
-                if i in src_set and j not in src_set:
-                    I_cc += c
-                elif j in src_set and i not in src_set:
-                    I_cc -= c
-            I_cc = abs(I_cc)
-
             # --- current-distribution shape statistics ---
             # How concentrated is the flow? These describe the *shape* of the
             # edge-current magnitude distribution at this voltage.
@@ -279,7 +224,7 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
             top10_current_fraction = float(sorted_mags[-k:].sum() / cum[-1]) \
                 if cum[-1] > 0 else 0.0
         else:
-            backbone_edges, participation, I_cc = 0, 0.0, 0.0
+            backbone_edges, participation = 0, 0.0
             max_to_mean = cv_current = gini_current = top10_current_fraction = 0.0
 
         if Vr in G_voltages_set and G_out_prefix and activated_nodes:
@@ -321,7 +266,9 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
             'conducting_edges': len(edge_currents),
             'source_drain_connected': int(connected),
             'total_current_A': total_current,
-            'total_current_chargeconserving_A': I_cc,
+            'source_current_A': solution["source_current_A"],
+            'drain_current_A': solution["drain_current_A"],
+            'current_balance_error_A': solution["current_balance_error_A"],
             'conductance_S': conductance,
             'backbone_edges': backbone_edges,
             'participation_ratio': participation,
@@ -343,20 +290,31 @@ def sweep(net, V_start, V_max, V_step, current_frac=0.01,
         })
         V = round(V + V_step, 10)
 
+    # This is a run-level property evaluated at the first connected voltage.
+    # Repeating it in every row makes the value available in any sliced or
+    # aggregated evolution CSV without implying that it was recomputed later.
+    for row in rows:
+        row['edge_disjoint_pathways_at_Vperc'] = percolation_pathways
+        row['active_nodes_at_Vperc'] = percolation_active_nodes
+
     fieldnames = ['V', 'activated_nodes', 'activated_edges', 'conducting_nodes',
                   'conducting_edges', 'source_drain_connected', 'total_current_A',
-                  'total_current_chargeconserving_A',
+                  'source_current_A', 'drain_current_A',
+                  'current_balance_error_A',
                   'conductance_S', 'backbone_edges', 'participation_ratio',
                   'num_components', 'largest_cc_nodes', 'second_cc_nodes',
                   'largest_cc_fraction', 'mean_finite_cc',
                   'current_cv', 'current_gini', 'current_max_to_mean',
                   'current_top10_fraction',
                   'effective_resistance_ohm', 'algebraic_connectivity',
-                  'spectral_gap_ratio']
+                  'spectral_gap_ratio', 'edge_disjoint_pathways_at_Vperc',
+                  'active_nodes_at_Vperc']
     return {
         'rows': rows, 'fieldnames': fieldnames,
         'edge_currents_by_V': edge_currents_by_V,
         'percolation_V': percolation_V,
+        'percolation_pathways': percolation_pathways,
+        'percolation_active_nodes': percolation_active_nodes,
         'n_total_nodes': n_total_nodes, 'n_total_edges': n_total_edges,
     }
 
@@ -371,16 +329,16 @@ def write_csv(result, path):
 
 
 def write_iv_csv(result, path):
-    """Focused I-V table: just voltage, current (both conventions), conductance.
+    """Focused I-V table with current-conservation diagnostics.
     A clean companion to the full per-voltage table for plotting the I-V curve."""
     rows = result['rows']
     with open(path, 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow(['V', 'current_A', 'current_chargeconserving_A',
-                    'conductance_S'])
+        w.writerow(['V', 'current_A', 'source_current_A', 'drain_current_A',
+                    'current_balance_error_A', 'conductance_S'])
         for r in rows:
-            w.writerow([r['V'], r['total_current_A'],
-                        r['total_current_chargeconserving_A'],
+            w.writerow([r['V'], r['total_current_A'], r['source_current_A'],
+                        r['drain_current_A'], r['current_balance_error_A'],
                         r['conductance_S']])
     return path
 
@@ -391,8 +349,9 @@ def write_edge_currents_csv(net, result, path, conducting_only=True,
     Export per-edge currents across the sweep, with node positions, so the
     network snapshots can be reproduced from CSV alone.
 
-    One row per edge per voltage:
-      V, node_i, node_j, x_i, y_i, x_j, y_j, current_A, abs_current_A
+    One row per edge per voltage. The run-level
+    edge_disjoint_pathways_at_Vperc value is repeated so a standalone edge CSV
+    retains the independent-pathway count used in its snapshot title.
     current_A is signed (positive = flow node_i -> node_j).
 
     Parameters
@@ -409,16 +368,18 @@ def write_edge_currents_csv(net, result, path, conducting_only=True,
 
     with open(path, 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow(['V', 'node_i', 'node_j', 'x_i', 'y_i', 'x_j', 'y_j',
+        w.writerow(['V', 'edge_disjoint_pathways_at_Vperc',
+                    'active_nodes_at_Vperc',
+                    'node_i', 'node_j', 'x_i', 'y_i', 'x_j', 'y_j',
                     'current_A', 'abs_current_A'])
         for Vr in sorted(ecbv.keys()):
             if Vset is not None and Vr not in Vset:
                 continue
             ec = ecbv[Vr]
             for (i, j), c in ec.items():
-                w.writerow([Vr, i, j,
+                w.writerow([Vr, result.get('percolation_pathways', 0),
+                            result.get('percolation_active_nodes', 0), i, j,
                             f"{pos[i][0]:.6f}", f"{pos[i][1]:.6f}",
                             f"{pos[j][0]:.6f}", f"{pos[j][1]:.6f}",
                             f"{c:.8e}", f"{abs(c):.8e}"])
     return path
-

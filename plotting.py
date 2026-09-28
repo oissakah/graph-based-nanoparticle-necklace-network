@@ -18,7 +18,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
+
+# =============================================================================
 # STYLE CONSTANTS  (edit here to restyle every figure)
+# =============================================================================
 FONT_TITLE      = 13
 FONT_AXIS_LABEL = 13
 FONT_TICK       = 11
@@ -36,6 +39,7 @@ SYM_VA    = r"$V_a$"
 SYM_MEANVA = r"$\langle V_a\rangle$"
 SYM_SIGMA = r"$\sigma$"
 
+
 def _apply_axes_style(ax, title=None, xlabel=None, ylabel=None):
     if title:
         ax.set_title(title, fontsize=FONT_TITLE)
@@ -45,6 +49,7 @@ def _apply_axes_style(ax, title=None, xlabel=None, ylabel=None):
         ax.set_ylabel(ylabel, fontsize=FONT_AXIS_LABEL)
     ax.tick_params(axis="both", labelsize=FONT_TICK)
     ax.grid(alpha=0.3)
+
 
 def _series_label(r, mode):
     """Legend label for one result dict, depending on what is being varied."""
@@ -56,6 +61,10 @@ def _series_label(r, mode):
         return rf"N = {r['N']}"
     return str(r.get("seed", ""))
 
+
+# =============================================================================
+# I-V OVERLAYS
+# =============================================================================
 def plot_iv_overlay(results, mode, title, outfile):
     """Overlay I-V curves for a list of results, coloured by the varied param."""
     results = sorted(results, key=lambda r: (
@@ -67,7 +76,7 @@ def plot_iv_overlay(results, mode, title, outfile):
     for c, r in zip(colors, results):
         v = np.asarray(r["voltages"], dtype=float)
         i = np.asarray(r["currents"], dtype=float)
-        v_end = float(r.get("transition_voltage_V", np.nan))
+        v_end = float(r.get("activation_saturation_voltage_V", np.nan))
         if np.isfinite(v_end):
             keep = v <= v_end + 1e-9
             v, i = v[keep], i[keep]
@@ -78,6 +87,7 @@ def plot_iv_overlay(results, mode, title, outfile):
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
 def plot_iv_overlay_case(results, title, outfile):
     """I-V overlay for the void-fraction sweep (Case R), coloured by void fraction."""
     results = sorted(results, key=lambda r: r.get("void_fraction", 0.0))
@@ -87,7 +97,7 @@ def plot_iv_overlay_case(results, title, outfile):
         fv = r.get("void_fraction", 0.0)
         v = np.asarray(r["voltages"], dtype=float)
         i = np.asarray(r["currents"], dtype=float)
-        v_end = float(r.get("transition_voltage_V", np.nan))
+        v_end = float(r.get("activation_saturation_voltage_V", np.nan))
         if np.isfinite(v_end):
             keep = v <= v_end + 1e-9
             v, i = v[keep], i[keep]
@@ -98,7 +108,10 @@ def plot_iv_overlay_case(results, title, outfile):
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
+# =============================================================================
 # DISTRIBUTION OVERLAY  (activation-voltage distributions)
+# =============================================================================
 def plot_theoretical_distribution_overlay(results, mode, title, outfile,
                                           add_ref_line=False,
                                           clip=(0.0, 20.0)):
@@ -132,7 +145,10 @@ def plot_theoretical_distribution_overlay(results, mode, title, outfile,
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
+# =============================================================================
 # ZETA vs JUNCTION COUNT
+# =============================================================================
 def plot_zeta_vs_N(results, title, outfile):
     """Transport exponent zeta as a function of junction count N."""
     results = sorted(results, key=lambda r: r["N"])
@@ -144,6 +160,7 @@ def plot_zeta_vs_N(results, title, outfile):
     fig.tight_layout()
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
+
 
 def plot_metric_heatmap(results, metric_key, clabel, title, outfile,
                         x_key="N", y_key="mean_va_target",
@@ -202,7 +219,10 @@ def plot_metric_heatmap(results, metric_key, clabel, title, outfile,
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
+# =============================================================================
 # METRIC vs VOID FRACTION  (Case R)
+# =============================================================================
 def plot_metric_vs_void(results, metric_key, ylabel, title, outfile):
     """Generic metric vs void fraction for the void sweep."""
     results = sorted(results, key=lambda r: r.get("void_fraction", 0.0))
@@ -219,6 +239,10 @@ def plot_metric_vs_void(results, metric_key, ylabel, title, outfile):
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
+# =============================================================================
+# TOPOLOGY PLOT
+# =============================================================================
 def save_topology_plot(n_junctions, mean_va, sigma_va, seed, outfile,
                        build_network_fn):
     """Draw the network topology, nodes coloured by activation voltage."""
@@ -229,7 +253,7 @@ def save_topology_plot(n_junctions, mean_va, sigma_va, seed, outfile,
         ax.plot([pos[i][0], pos[j][0]], [pos[i][1], pos[j][1]],
                 lw=0.4, alpha=0.2, color="0.45")
     ids  = list(net.G.nodes())
-    vals = [net.G.nodes[n]["Vth"] for n in ids]
+    vals = [net.G.nodes[n]["Va"] for n in ids]
     sc = ax.scatter(pos[ids, 0], pos[ids, 1], c=vals, s=16,
                     cmap="viridis", edgecolors="none")
     if net.source_nodes:
@@ -250,6 +274,7 @@ def save_topology_plot(n_junctions, mean_va, sigma_va, seed, outfile,
     fig.tight_layout()
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
+
 
 def save_topology_plot_case(result, outfile):
     """Topology plot for a Case R result that already carries positions/edges/voids."""
@@ -287,6 +312,7 @@ def save_topology_plot_case(result, outfile):
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
 def _trim_rows_to_vend(rows, v_end):
     """Return rows whose 'V' is <= v_end (with a tiny tolerance). If v_end is
     not finite, return rows unchanged. Used to end the evolution/I-V curves at
@@ -299,13 +325,14 @@ def _trim_rows_to_vend(rows, v_end):
         return rows
     return [r for r in rows if float(r.get("V", np.nan)) <= ve + 1e-9]
 
+
 def plot_evolution(rows, fields, title, outfile, percolation_V=None, v_end=None):
     """
     Four-panel per-voltage network-evolution figure, plotted from the same rows
     written to the evolution CSV.
 
-    Panels: activation growth; activated vs conducting edges; I-V (solver +
-    charge-conserving); current concentration (participation + backbone).
+    Panels: activation growth; activated vs conducting edges; canonical I-V;
+    current concentration (participation + backbone).
 
     When v_end is finite, points beyond it are dropped so the curves end at the
     nonlinear->linear transition voltage rather than running to V_MAX.
@@ -320,7 +347,6 @@ def plot_evolution(rows, fields, title, outfile, percolation_V=None, v_end=None)
     ae  = col("activated_edges")
     ce  = col("conducting_edges")
     I   = col("total_current_A")
-    Icc = col("total_current_chargeconserving_A")
     part = col("participation_ratio")
     bb   = col("backbone_edges")
 
@@ -346,8 +372,7 @@ def plot_evolution(rows, fields, title, outfile, percolation_V=None, v_end=None)
     a.legend(fontsize=FONT_LEGEND)
 
     a = ax[1, 0]
-    a.plot(V, I * 1e9, "-o", ms=4, color="tab:red", label="solver current")
-    a.plot(V, Icc * 1e9, "--", color="tab:orange", label="charge-conserving")
+    a.plot(V, I * 1e9, "-o", ms=4, color="tab:red", label="Kirchhoff current")
     _apply_axes_style(a, "I-V curve (Kirchhoff)", "Voltage (V)", "Current (nA)")
     a.legend(fontsize=FONT_LEGEND)
 
@@ -364,6 +389,7 @@ def plot_evolution(rows, fields, title, outfile, percolation_V=None, v_end=None)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
+
 
 def plot_structure_evolution(rows, fields, title, outfile, percolation_V=None, v_end=None):
     """
@@ -422,6 +448,7 @@ def plot_structure_evolution(rows, fields, title, outfile, percolation_V=None, v
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
 def plot_current_distribution_evolution(rows, fields, title, outfile,
                                         percolation_V=None, v_end=None):
     """
@@ -473,6 +500,7 @@ def plot_current_distribution_evolution(rows, fields, title, outfile,
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
 def plot_spectral_evolution(rows, fields, title, outfile, percolation_V=None, v_end=None):
     """
     Full-system-matrix spectral metrics vs voltage.
@@ -520,6 +548,8 @@ def plot_spectral_evolution(rows, fields, title, outfile, percolation_V=None, v_
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
+
 def plot_metric_vs_parameter_errorbars(results, x_key, metric_key, xlabel, ylabel,
                                        title, outfile, label_prefix=None):
     """
@@ -564,6 +594,7 @@ def plot_metric_vs_parameter_errorbars(results, x_key, metric_key, xlabel, ylabe
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
 def plot_zeta_vs_N_errorbars(results, title, outfile):
     """
     Transport exponent zeta vs junction count N, with error bars (mean +/- std
@@ -597,6 +628,7 @@ def plot_zeta_vs_N_errorbars(results, title, outfile):
     fig.tight_layout()
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
+
 
 def plot_metric_vs_void_errorbars(results, metric_key, ylabel, title, outfile):
     """
@@ -638,7 +670,168 @@ def plot_metric_vs_void_errorbars(results, metric_key, ylabel, title, outfile):
     fig.savefig(outfile, dpi=FIG_DPI, bbox_inches="tight")
     plt.close(fig)
 
+
+# =============================================================================
 # NETWORK SNAPSHOTS  (conduction region spreading; edge width/color = |current|)
+# =============================================================================
+def plot_percolation_current_distribution(net, percolation_voltage, outfile,
+                                          title=None):
+    """Plot the Vperc edge-current histogram beside its network snapshot."""
+    from matplotlib.collections import LineCollection
+    from matplotlib.colors import LogNorm
+    import sweep_analysis as _sa
+
+    voltage = float(percolation_voltage)
+    active = set(net.activated_nodes(voltage))
+    solution = net.solve_active_network(active, voltage)
+    currents = solution["edge_currents"]
+    pathway_count = _sa.count_edge_disjoint_pathways(net, active)
+    current_edges = [edge for edge, value in currents.items() if abs(value) > 0]
+    magnitudes = np.asarray(
+        [abs(currents[edge]) for edge in current_edges], dtype=float) * 1e9
+    if magnitudes.size == 0:
+        return None
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.5),
+                             gridspec_kw={"width_ratios": [1.0, 1.12]})
+    if magnitudes.max() > magnitudes.min():
+        bins = np.geomspace(magnitudes.min(), magnitudes.max(), 28)
+        counts, _, _ = axes[0].hist(
+            magnitudes, bins=bins, color="#3567A8", edgecolor="white")
+        axes[0].set_xscale("log")
+    else:
+        counts, _, _ = axes[0].hist(
+            magnitudes, bins=1, color="#3567A8", edgecolor="white")
+    if int(round(float(counts.sum()))) != len(current_edges):
+        raise RuntimeError("Histogram and snapshot current-edge counts differ.")
+    axes[0].set_xlabel(r"Edge-current magnitude, $|I_{ij}|$ [nA]")
+    axes[0].set_ylabel("Current-carrying edge count [-]")
+    axes[0].grid(False)
+    axes[0].text(
+        0.04, 0.95,
+        rf"$V_{{perc}}$ = {voltage:g} V"
+        "\n" + rf"$N_{{path}}$ = {pathway_count}"
+        "\n" + rf"$N_{{active}}$ = {len(active)}",
+        transform=axes[0].transAxes, va="top", ha="left",
+        fontsize=FONT_LEGEND)
+
+    pos = net.positions
+    background = [[tuple(pos[i]), tuple(pos[j])] for i, j in net.G.edges()]
+    axes[1].add_collection(LineCollection(
+        background, colors="0.85", linewidths=0.25, alpha=0.35, zorder=1))
+    current_values = np.asarray(
+        [abs(currents[edge]) * 1e9 for edge in current_edges])
+    segments = [[tuple(pos[i]), tuple(pos[j])] for i, j in current_edges]
+    vmin, vmax = current_values.min(), current_values.max()
+    if vmax > vmin:
+        norm_current = LogNorm(vmin=vmin, vmax=vmax)
+        scaled = ((np.log10(current_values) - np.log10(vmin)) /
+                  (np.log10(vmax) - np.log10(vmin)))
+    else:
+        norm_current = plt.Normalize(max(vmin * 0.9, 1e-30), vmax * 1.1)
+        scaled = np.ones_like(current_values)
+    collection = LineCollection(
+        segments, array=current_values, cmap="plasma", norm=norm_current,
+        linewidths=0.5 + 4.0 * scaled, zorder=3)
+    axes[1].add_collection(collection)
+    inactive = [node for node in net.G.nodes() if node not in active]
+    if inactive:
+        axes[1].scatter(pos[inactive, 0], pos[inactive, 1], s=4,
+                        c="0.8", zorder=2)
+    active_list = sorted(active)
+    axes[1].scatter(pos[active_list, 0], pos[active_list, 1], s=16,
+                    c="steelblue", edgecolors="navy", linewidths=0.2, zorder=4)
+    if net.source_nodes:
+        src = np.asarray(sorted(net.source_nodes))
+        axes[1].scatter(pos[src, 0], pos[src, 1], s=30, marker="s", c="green",
+                        edgecolors="k", linewidths=0.3, zorder=5)
+    if net.drain_nodes:
+        drn = np.asarray(sorted(net.drain_nodes))
+        axes[1].scatter(pos[drn, 0], pos[drn, 1], s=30, marker="s", c="red",
+                        edgecolors="k", linewidths=0.3, zorder=5)
+    colorbar = fig.colorbar(collection, ax=axes[1], fraction=0.045, pad=0.03)
+    colorbar.set_label(r"$|I_{ij}|$ [nA]")
+    axes[1].set_xlim(-0.02, net.domain[0] + 0.02)
+    axes[1].set_ylim(-0.02, net.domain[1] + 0.02)
+    axes[1].set_aspect("equal")
+    axes[1].set_xticks([]); axes[1].set_yticks([])
+    axes[1].set_title(
+        rf"$|I_{{ij}}|$ at $V_{{perc}}={voltage:g}$ V"
+        f"\n{len(active)} active nodes; "
+        f"{len(current_edges)} current-carrying edges",
+        fontsize=FONT_TITLE, fontweight="bold")
+    if title is None:
+        title = "Edge-current distribution and snapshot"
+    fig.suptitle(title, fontsize=FONT_TITLE, fontweight="bold")
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fig.savefig(outfile, dpi=DIAG_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return outfile
+
+
+def plot_percolation_current_snapshot(net, percolation_voltage, outfile,
+                                      title=None, independent_pathways=None):
+    """Map the absolute current carried by every conducting edge at V_perc."""
+    from matplotlib.collections import LineCollection
+    from matplotlib.colors import LogNorm
+    voltage = float(percolation_voltage)
+    active = net.activated_nodes(voltage)
+    solution = net.solve_active_network(active, voltage)
+    currents = solution["edge_currents"]
+    if not currents:
+        return None
+    if independent_pathways is None:
+        import sweep_analysis as _sa
+        independent_pathways = _sa.count_edge_disjoint_pathways(net, active)
+    pos = net.positions
+    fig, ax = plt.subplots(figsize=(8, 7))
+    background = [[tuple(pos[i]), tuple(pos[j])] for i, j in net.G.edges()]
+    ax.add_collection(LineCollection(background, colors="0.85", linewidths=0.25,
+                                     alpha=0.35, zorder=1))
+    edges = list(currents)
+    values = np.asarray([abs(currents[edge]) * 1e9 for edge in edges])
+    segments = [[tuple(pos[i]), tuple(pos[j])] for i, j in edges]
+    vmin, vmax = values.min(), values.max()
+    if vmax > vmin:
+        norm = LogNorm(vmin=vmin, vmax=vmax)
+        scaled = (np.log10(values) - np.log10(vmin)) / (np.log10(vmax) - np.log10(vmin))
+    else:
+        norm = plt.Normalize(vmin=max(vmin * 0.9, 1e-30), vmax=vmax * 1.1)
+        scaled = np.ones_like(values)
+    collection = LineCollection(segments, array=values, cmap="plasma", norm=norm,
+                                linewidths=0.5 + 4.0 * scaled, zorder=3)
+    ax.add_collection(collection)
+    inactive = [node for node in net.G.nodes() if node not in active]
+    if inactive:
+        ax.scatter(pos[inactive, 0], pos[inactive, 1], s=4, c="0.8", zorder=2)
+    active_list = sorted(active)
+    ax.scatter(pos[active_list, 0], pos[active_list, 1], s=16, c="steelblue",
+               edgecolors="navy", linewidths=0.2, zorder=4)
+    if net.source_nodes:
+        src = np.asarray(sorted(net.source_nodes))
+        ax.scatter(pos[src, 0], pos[src, 1], s=30, marker="s", c="green",
+                   edgecolors="k", linewidths=0.3, zorder=5)
+    if net.drain_nodes:
+        drn = np.asarray(sorted(net.drain_nodes))
+        ax.scatter(pos[drn, 0], pos[drn, 1], s=30, marker="s", c="red",
+                   edgecolors="k", linewidths=0.3, zorder=5)
+    colorbar = fig.colorbar(collection, ax=ax, fraction=0.045, pad=0.03)
+    colorbar.set_label(r"Edge-current magnitude, $|I_{ij}|$ (nA)")
+    ax.set_xlim(-0.02, net.domain[0] + 0.02)
+    ax.set_ylim(-0.02, net.domain[1] + 0.02)
+    ax.set_aspect("equal")
+    ax.set_xticks([]); ax.set_yticks([])
+    if title is None:
+        title = rf"Current-carrying network at $V_{{perc}}={voltage:g}$ V"
+    pathway_word = "pathway" if int(independent_pathways) == 1 else "pathways"
+    title += (f"\n{len(active)} active nodes; {len(currents)} current-carrying edges; "
+              f"{int(independent_pathways)} independent S-D {pathway_word}")
+    ax.set_title(title, fontsize=FONT_TITLE, fontweight="bold")
+    fig.tight_layout()
+    fig.savefig(outfile, dpi=DIAG_DPI, bbox_inches="tight")
+    plt.close(fig)
+    return outfile
+
+
 def plot_snapshots(net, snap_voltages, outfile, title=None, R_MIN=1.0):
     """
     Multi-panel network snapshots showing the conduction region spread with
@@ -663,7 +856,7 @@ def plot_snapshots(net, snap_voltages, outfile, title=None, R_MIN=1.0):
     # compute edge currents at each snapshot voltage
     ec_by_V = {}
     for V in snap_voltages:
-        activated = {n for n in net.G.nodes() if net.G.nodes[n]["Vth"] <= V}
+        activated = net.activated_nodes(V)
         _, _, ec = _sa._edge_currents(net, activated, V)
         ec_by_V[V] = ec
 
@@ -699,7 +892,7 @@ def plot_snapshots(net, snap_voltages, outfile, title=None, R_MIN=1.0):
             lc.set_clim(0, 1)
             ax.add_collection(lc)
         # nodes
-        activated = {n for n in net.G.nodes() if net.G.nodes[n]["Vth"] <= V}
+        activated = net.activated_nodes(V)
         off = [n for n in net.G.nodes() if n not in activated]
         on = list(activated)
         if off:
@@ -748,27 +941,23 @@ def plot_snapshots(net, snap_voltages, outfile, title=None, R_MIN=1.0):
     plt.close(fig)
     return outfile
 
+
+# =============================================================================
 # CONDUCTANCE MATRIX HEATMAP  (Kirchhoff Laplacian; no path enumeration)
+# =============================================================================
 def plot_G_matrix(net, voltage, outfile, R_MIN=1.0):
     """
-    log10 conductance-matrix heatmap over the activated subgraph at one voltage.
-    Built directly from edge conductances (the Laplacian), with no path search.
+    log10 heatmap of the exact active-circuit Laplacian used by the solver.
     Writes a companion long-form CSV of nonzero entries.
     """
     import csv
     Vr = float(voltage)
-    activated = sorted(n for n in net.G.nodes() if net.G.nodes[n]["Vth"] <= Vr)
-    if not activated:
+    system = net.build_active_laplacian(net.activated_nodes(Vr))
+    if system is None:
         return None
-    idx = {v: k for k, v in enumerate(activated)}
+    activated = system["nodes"]
+    G = system["laplacian"].toarray()
     N = len(activated)
-    G = np.zeros((N, N))
-    for (i, j) in net.G.edges():
-        if i in idx and j in idx:
-            g = 1.0 / max(net.G[i][j]["R_edge"], R_MIN)
-            ki, kj = idx[i], idx[j]
-            G[ki, ki] += g; G[kj, kj] += g
-            G[ki, kj] -= g; G[kj, ki] -= g
 
     fig, ax = plt.subplots(figsize=(7, 6))
     im = ax.imshow(np.log10(np.abs(G) + 1e-20), cmap="plasma",
@@ -783,7 +972,7 @@ def plot_G_matrix(net, voltage, outfile, R_MIN=1.0):
     ax.set_xticklabels(["S"] * len(src) + ["D"] * len(drn), fontsize=6, color="white")
     ax.set_yticks(src + drn)
     ax.set_yticklabels(["S"] * len(src) + ["D"] * len(drn), fontsize=6, color="white")
-    _apply_axes_style(ax, f"Conductance matrix at V={Vr:g} V ({N} active nodes)",
+    _apply_axes_style(ax, f"Active-circuit Laplacian at V={Vr:g} V ({N} bridging nodes)",
                       "matrix index", "matrix index")
     fig.tight_layout()
     fig.savefig(outfile, dpi=DIAG_DPI, bbox_inches="tight")

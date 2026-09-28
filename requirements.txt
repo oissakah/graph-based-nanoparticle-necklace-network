@@ -1,6 +1,7 @@
-numpy
-pandas
-scipy
-networkx
-matplotlib
-PyYAML
+matplotlib>=3.8
+networkx>=3.2
+numpy>=1.26
+pandas>=2.0
+PyYAML>=6.0
+scipy>=1.11
+pytest>=8.0

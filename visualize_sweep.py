@@ -3,7 +3,7 @@ visualize_sweep.py — figures for the voltage-sweep analysis (production config
 
 Produces:
   1. <tag>_evolution.png : multi-panel curves vs V (activation growth, conduction
-     onset, current with both conventions, current concentration).
+     onset, canonical Kirchhoff current, current concentration).
   2. <tag>_snapshots.png : the network at several voltages, edges drawn with
      thickness/color proportional to |current|, showing the conduction region
      spreading as V rises.
@@ -16,6 +16,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+from pathlib import Path
 import sweep_analysis as sa
 
 
@@ -26,7 +27,6 @@ def plot_evolution(result, tag, outpath):
     ae = np.array([r['activated_edges'] for r in rows])
     ce = np.array([r['conducting_edges'] for r in rows])
     I = np.array([r['total_current_A'] for r in rows])
-    Icc = np.array([r['total_current_chargeconserving_A'] for r in rows])
     part = np.array([r['participation_ratio'] for r in rows])
     bb = np.array([r['backbone_edges'] for r in rows])
     pV = result['percolation_V']
@@ -48,10 +48,9 @@ def plot_evolution(result, tag, outpath):
     a.legend(); a.grid(alpha=0.3)
 
     a = ax[1, 0]
-    a.plot(V, I * 1e9, '-o', ms=3, color='tab:red', label='solver current')
-    a.plot(V, Icc * 1e9, '--', color='tab:orange', label='charge-conserving')
+    a.plot(V, I * 1e9, '-o', ms=3, color='tab:red', label='Kirchhoff current')
     a.set_xlabel('V (V)'); a.set_ylabel('total current (nA)')
-    a.set_title('I-V curve (Kirchhoff)\nsolver vs charge-conserving (see README)')
+    a.set_title('Macroscopic I-V response')
     a.legend(); a.grid(alpha=0.3)
 
     a = ax[1, 1]
@@ -116,7 +115,7 @@ def plot_snapshots(net, result, tag, outpath, snap_voltages=None, n_snaps=4):
                                 linewidths=widths, zorder=3)
             lc.set_clim(0, 1)
             ax.add_collection(lc)
-        activated = {n for n in net.G.nodes() if net.G.nodes[n]['Vth'] <= Vr}
+        activated = net.activated_nodes(Vr)
         off = [n for n in net.G.nodes() if n not in activated]
         on = list(activated)
         if off:
@@ -161,21 +160,15 @@ def plot_snapshots(net, result, tag, outpath, snap_voltages=None, n_snaps=4):
     return outpath
 
 
-def plot_iv_curve(result, tag, outpath, show_chargeconserving=True):
-    """Standalone Kirchhoff I-V curve (single panel). Primary curve is the
-    solver current (matches optimized_final_system.py); the charge-conserving
-    current is shown as a dashed reference if requested."""
+def plot_iv_curve(result, tag, outpath):
+    """Standalone canonical Kirchhoff I-V curve."""
     rows = result['rows']
     V = np.array([r['V'] for r in rows])
     I = np.array([r['total_current_A'] for r in rows])
-    Icc = np.array([r['total_current_chargeconserving_A'] for r in rows])
     pV = result['percolation_V']
 
     fig, ax = plt.subplots(figsize=(8, 5.5))
-    ax.plot(V, I * 1e9, '-o', ms=4, color='tab:blue', label='Kirchhoff (solver)')
-    if show_chargeconserving:
-        ax.plot(V, Icc * 1e9, '--', color='tab:orange',
-                label='charge-conserving')
+    ax.plot(V, I * 1e9, '-o', ms=4, color='tab:blue', label='Kirchhoff current')
     if pV is not None:
         ax.axvline(pV, color='k', ls=':', lw=1, alpha=0.6)
         ax.text(pV, ax.get_ylim()[1] * 0.05, f' percolation V={pV:g}',
@@ -349,14 +342,171 @@ def plot_spectral(result, tag, outpath):
     return outpath
 
 
+def plot_percolation_current_outputs(net, result, tag, outdir):
+    """Save the |I_ij| distribution, edge table, and current map at V_perc."""
+    percolation_voltage = result.get('percolation_V')
+    if percolation_voltage is None:
+        print(f'[{tag}] no percolation in sweep; skipping percolation-current plots')
+        return []
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    voltage = round(float(percolation_voltage), 10)
+    edge_currents = result['edge_currents_by_V'].get(voltage, {})
+    pathway_count = int(result.get('percolation_pathways', 0))
+    pathway_word = 'pathway' if pathway_count == 1 else 'pathways'
+    edges = [edge for edge, value in edge_currents.items() if abs(value) > 0]
+    magnitudes = np.asarray(
+        [abs(edge_currents[edge]) for edge in edges], dtype=float)
+    if magnitudes.size == 0:
+        return []
+
+    stem = f'{tag}_Vperc{voltage:g}'
+    csv_path = outdir / f'edge_currents_{stem}.csv'
+    sa.write_edge_currents_csv(net, result, str(csv_path), voltages=[voltage])
+
+    # CSV sidecars preserve the full topology and node roles so the publication
+    # script can rebuild this snapshot with its common figure style.
+    active = set(net.activated_nodes(voltage))
+    node_rows = []
+    for node in net.G.nodes():
+        node_rows.append({
+            'node': int(node), 'x': float(net.positions[node][0]),
+            'y': float(net.positions[node][1]),
+            'Va_V': float(net.G.nodes[node]['Va']),
+            'active_at_Vperc': int(node in active),
+            'is_source': int(node in net.source_nodes),
+            'is_drain': int(node in net.drain_nodes),
+        })
+    import pandas as pd
+    pd.DataFrame(node_rows).to_csv(outdir / f'network_nodes_{stem}.csv', index=False)
+    edge_rows = []
+    for i, j in net.G.edges():
+        edge_rows.append({
+            'node_i': int(i), 'node_j': int(j),
+            'x_i': float(net.positions[i][0]), 'y_i': float(net.positions[i][1]),
+            'x_j': float(net.positions[j][0]), 'y_j': float(net.positions[j][1]),
+        })
+    pd.DataFrame(edge_rows).to_csv(outdir / f'network_edges_{stem}.csv', index=False)
+
+    from matplotlib.colors import LogNorm
+    pos = net.positions
+    edge_values = np.asarray([abs(edge_currents[edge]) * 1e9 for edge in edges])
+    segments = [[tuple(pos[i]), tuple(pos[j])] for i, j in edges]
+    vmin, vmax = edge_values.min(), edge_values.max()
+    if vmax > vmin:
+        norm = LogNorm(vmin=vmin, vmax=vmax)
+        scaled = ((np.log10(edge_values) - np.log10(vmin)) /
+                  (np.log10(vmax) - np.log10(vmin)))
+    else:
+        norm = plt.Normalize(vmin=max(vmin * 0.9, 1e-30), vmax=vmax * 1.1)
+        scaled = np.ones_like(edge_values)
+    all_segments = [[tuple(pos[i]), tuple(pos[j])] for i, j in net.G.edges()]
+    inactive = [node for node in net.G.nodes() if node not in active]
+    active_list = sorted(active)
+
+    values_na = magnitudes * 1e9
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.5),
+                             gridspec_kw={'width_ratios': [1.0, 1.12]})
+    positive_min, positive_max = values_na.min(), values_na.max()
+    if positive_max > positive_min:
+        bins = np.geomspace(positive_min, positive_max, 28)
+        counts, _, _ = axes[0].hist(
+            values_na, bins=bins, color='#3567A8', edgecolor='white')
+        axes[0].set_xscale('log')
+    else:
+        counts, _, _ = axes[0].hist(
+            values_na, bins=1, color='#3567A8', edgecolor='white')
+    if int(round(float(counts.sum()))) != len(edges):
+        raise RuntimeError('Histogram and snapshot current-edge counts differ.')
+    axes[0].set_xlabel(r'Edge-current magnitude, $|I_{ij}|$ [nA]')
+    axes[0].set_ylabel('Current-carrying edge count [-]')
+    axes[0].grid(False)
+    axes[0].text(
+        0.04, 0.95,
+        rf'$V_{{perc}}$ = {voltage:g} V'
+        '\n' + rf'$N_{{path}}$ = {pathway_count}'
+        '\n' + rf'$N_{{active}}$ = {len(active)}',
+        transform=axes[0].transAxes, va='top', ha='left')
+
+    axes[1].add_collection(LineCollection(
+        all_segments, colors='0.85', linewidths=0.25, alpha=0.35, zorder=1))
+    combined_collection = LineCollection(
+        segments, array=edge_values, cmap='plasma', norm=norm,
+        linewidths=0.5 + 4.0 * scaled, zorder=3)
+    axes[1].add_collection(combined_collection)
+    if inactive:
+        axes[1].scatter(pos[inactive, 0], pos[inactive, 1], s=4,
+                        c='0.8', zorder=2)
+    axes[1].scatter(pos[active_list, 0], pos[active_list, 1], s=16,
+                    c='steelblue', edgecolors='navy', linewidths=0.2, zorder=4)
+    if net.source_nodes:
+        src = np.asarray(sorted(net.source_nodes))
+        axes[1].scatter(pos[src, 0], pos[src, 1], s=30, marker='s', c='green',
+                        edgecolors='k', linewidths=0.3, zorder=5)
+    if net.drain_nodes:
+        drn = np.asarray(sorted(net.drain_nodes))
+        axes[1].scatter(pos[drn, 0], pos[drn, 1], s=30, marker='s', c='red',
+                        edgecolors='k', linewidths=0.3, zorder=5)
+    combined_cbar = fig.colorbar(
+        combined_collection, ax=axes[1], fraction=0.045, pad=0.03)
+    combined_cbar.set_label(r'$|I_{ij}|$ [nA]')
+    axes[1].set_xlim(-0.02, net.domain[0] + 0.02)
+    axes[1].set_ylim(-0.02, net.domain[1] + 0.02)
+    axes[1].set_aspect('equal'); axes[1].set_xticks([]); axes[1].set_yticks([])
+    axes[1].set_title(
+        rf'$|I_{{ij}}|$ at $V_{{perc}}={voltage:g}$ V — {tag}'
+        f'\n{len(active)} active nodes; {len(edges)} current-carrying edges',
+        fontweight='bold')
+    fig.tight_layout()
+    distribution_path = outdir / f'current_distribution_{stem}.png'
+    fig.savefig(distribution_path, dpi=220, bbox_inches='tight')
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(8, 7))
+    ax.add_collection(LineCollection(all_segments, colors='0.85', linewidths=0.25,
+                                     alpha=0.35, zorder=1))
+    collection = LineCollection(segments, array=edge_values, cmap='plasma', norm=norm,
+                                linewidths=0.5 + 4.0 * scaled, zorder=3)
+    ax.add_collection(collection)
+    if inactive:
+        ax.scatter(pos[inactive, 0], pos[inactive, 1], s=4, c='0.8', zorder=2)
+    ax.scatter(pos[active_list, 0], pos[active_list, 1], s=16, c='steelblue',
+               edgecolors='navy', linewidths=0.2, zorder=4)
+    if net.source_nodes:
+        src = np.asarray(sorted(net.source_nodes))
+        ax.scatter(pos[src, 0], pos[src, 1], s=30, marker='s', c='green',
+                   edgecolors='k', linewidths=0.3, zorder=5)
+    if net.drain_nodes:
+        drn = np.asarray(sorted(net.drain_nodes))
+        ax.scatter(pos[drn, 0], pos[drn, 1], s=30, marker='s', c='red',
+                   edgecolors='k', linewidths=0.3, zorder=5)
+    colorbar = fig.colorbar(collection, ax=ax, fraction=0.045, pad=0.03)
+    colorbar.set_label(r'Edge-current magnitude, $|I_{ij}|$ (nA)')
+    ax.set_xlim(-0.02, net.domain[0] + 0.02)
+    ax.set_ylim(-0.02, net.domain[1] + 0.02)
+    ax.set_aspect('equal'); ax.set_xticks([]); ax.set_yticks([])
+    ax.set_title(rf'$|I_{{ij}}|$ at $V_{{perc}}={voltage:g}$ V — {tag}'
+                 f'\n{len(active)} active nodes; {len(edge_currents)} current-carrying edges; '
+                 f'{pathway_count} independent S-D {pathway_word}',
+                 fontweight='bold')
+    fig.tight_layout()
+    snapshot_path = outdir / f'edge_current_snapshot_{stem}.png'
+    fig.savefig(snapshot_path, dpi=220, bbox_inches='tight')
+    plt.close(fig)
+    return [distribution_path, snapshot_path, csv_path]
+
+
 def plot_Gmatrix(net, voltage, tag, outpath):
     """log10 conductance-matrix heatmap at one voltage (built fresh here)."""
     Vr = round(float(voltage), 10)
-    activated = {n for n in net.G.nodes() if net.G.nodes[n]['Vth'] <= Vr}
+    activated = net.activated_nodes(Vr)
     if not activated:
         print(f'[{tag}] no active nodes at V={Vr}; skipping G heatmap')
         return None
     Gmat, active_list = sa.conductance_matrix(net, activated)
+    if Gmat.size == 0:
+        print(f'[{tag}] no source-drain bridge at V={Vr}; skipping circuit heatmap')
+        return None
     N = Gmat.shape[0]
     fig, ax = plt.subplots(figsize=(7, 6))
     im = ax.imshow(np.log10(np.abs(Gmat) + 1e-20), cmap='plasma',

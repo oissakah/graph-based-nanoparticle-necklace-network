@@ -46,8 +46,20 @@ from nanoparticle_network import NanoparticleNetwork
 import sweep_analysis as sa
 import visualize_sweep as vz
 
-# Number of seeds to run in parallel. Lower to 1 if memory is tight.
-N_WORKERS = 3
+# Number of seeds to run in parallel. On Slurm, never exceed the CPU allocation.
+# NANONECKLACE_WORKERS can be used as an explicit override.
+def _configured_workers(default=3):
+    raw = (os.environ.get("NANONECKLACE_WORKERS")
+           or os.environ.get("SLURM_CPUS_PER_TASK"))
+    if raw is None:
+        return int(default)
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return int(default)
+
+
+N_WORKERS = _configured_workers()
 
 
 def _run_one_seed(args):

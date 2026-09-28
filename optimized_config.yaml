@@ -1,5 +1,5 @@
 system_name: optimized_nanoparticle_network
-description: Production configuration built from the rank-1 optimization result.
+description: Corrected production baseline for the causal Kirchhoff framework.
 network:
   n_junctions: 500
   connection_radius: 0.15
@@ -10,17 +10,16 @@ network:
   right_thresh: 0.85
 threshold_distribution:
   type: normal
-  mean: 4.0
-  std: 1.0
+  mean: 7.0
+  std: 2.0
   min: 0.0
   max: 20.0
 electrical:
   edge_k: 20000000000.0
   resistance_model: node
-  node_r_scale: 500000000.0
-  r_floor: 0.5
-  calculation_method: kirchhoff
-  tunneling_effects: true
+  # Fixed and independent of Va so activation timing and resistance are not
+  # changed together in the mean-Va parameter study.
+  node_resistance_ohm: 3500000000.0
 voltage_sweep:
   V_start: 0.0
   V_max: 16.0
@@ -37,15 +36,4 @@ output:
   root_folder: IV_results
   save_seed_curves: true
   save_representative_network_plot: true
-optimization_provenance:
-  source_files:
-  - best_parameter_set.yaml
-  - aggregated_results.csv
-  - top_20_parameter_sets.csv
-  - trial_results.csv
-  rank: 1
-  score: 0.991241
-  peak_current_mean_A: 2.2108372899865819e-07
-  percolation_voltage_mean_V: 2.0
-  fit_gamma_mean: 1.4791341535127038
   fit_R2_mean: 0.9947182028118092

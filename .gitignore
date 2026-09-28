@@ -1,40 +1,18 @@
-# Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+.pytest_cache/
 .venv/
 venv/
-env/
-
-# OS/editor
 .DS_Store
-Thumbs.db
-.vscode/
-.idea/
 
-# Generated simulation outputs
+# SWAN/local runtime outputs
+logs/
+*.out
+*.err
+
+# Generated simulation results
+Results*/
 IV_results/
-Results/
-Results_multiseed/
-plots/
-plots_pub/
-plots_connectactivate/
-case_plots/
-example_smoke_outputs/
-repo_smoke/
-*.log
-*.zip
-*.npy
 
-# Recreated CSV/figure outputs
-all_cases_VT_zeta.csv
-case*_VT_zeta*.csv
-case*_distribution_data*.csv
-case*_sampled_va.csv
-caseR_*random_voids*.csv
-sweep_table_*.csv
-edge_currents*.csv
-iv_curve*.csv
-Gmatrix_*.csv
-Gmatrix_*.png
+# Local archives / patches
+*.zip

@@ -66,6 +66,8 @@ def main():
     vz.plot_evolution(res, tag, str(outdir / f"evolution_{tag}.png"))
     vz.plot_snapshots(net, res, tag, str(outdir / f"snapshots_{tag}.png"),
                       snap_voltages=snap_voltages if snap_voltages else None)
+    vz.plot_percolation_current_outputs(
+        net, res, tag, outdir / "current_distribution_plots")
     for V in G_voltages:
         vz.plot_Gmatrix(net, V, tag, str(outdir / f"Gmatrix_{tag}_V{V:g}.png"))
 
