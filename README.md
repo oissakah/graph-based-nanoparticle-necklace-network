@@ -1,8 +1,22 @@
-# Graph-based nanoparticle necklace network
+# Graph-Based Kirchhoff Modeling of Nanoparticle Necklace Networks
 
-This repository contains a graph-based Kirchhoff model for studying voltage-driven activation, percolation, current redistribution, and nonlinear transport in nanoparticle necklace networks.
+[![Preprint](https://img.shields.io/badge/arXiv-2607.03698-b31b1b)](https://doi.org/10.48550/arXiv.2607.03698)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/regression-tests-physics%20consistency-0e6f63)](#verification)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Portfolio](https://img.shields.io/badge/Project%20story-Portfolio-c08a1f)](https://oissakah.github.io/nanonecklace.html)
 
-The current framework uses one internally consistent transport calculation:
+> **Preprint:** *Graph-Based Kirchhoff Modeling of Non-Ohmic Electron Transport in Self-Assembled Nanonecklace Networks*  
+> **Authors:** Obed Issakah, Srivathsan Badrinarayanan, Ravi F. Saraf, Janghoon Ock  
+> **DOI:** [10.48550/arXiv.2607.03698](https://doi.org/10.48550/arXiv.2607.03698)
+
+This repository implements a physics-based graph framework for studying how **voltage-driven activation, percolation, topology, and current redistribution** produce nonlinear electrical transport in self-assembled nanoparticle necklace networks.
+
+## Research question
+
+**How does a changing microscopic conducting network produce the macroscopic non-Ohmic current measured across the material?**
+
+Instead of fitting the terminal `I–V` curve as a black box, the model resolves the evolving internal electrical state: active nodes, conducting components, nodal potentials, edge currents, source–drain connectivity, and graph-level transport diagnostics.
 
 ```text
 applied voltage V
@@ -19,6 +33,24 @@ macroscopic I(V)
 ```
 
 ![Causal framework](framework_diagram/nanonecklace_causal_framework.png)
+
+## What this repository provides
+
+- a voltage-dependent active-graph representation of the nanonecklace;
+- a sparse Kirchhoff solver with explicit source/drain boundary conditions;
+- nodal-potential and edge-current reconstruction;
+- voltage-resolved percolation and connectivity diagnostics;
+- conductance-weighted spectral metrics, including `λ₂ [S]`;
+- multiseed and parameter-sweep workflows;
+- publication-oriented analysis and plotting code;
+- regression tests for physical and numerical consistency;
+- UNL SWAN / SLURM scripts for reproducible HPC runs.
+
+The public portfolio gives a concise scientific overview; this README documents the model and reproducibility details.
+
+- [Project story](https://oissakah.github.io/nanonecklace.html)
+- [Preprint](https://doi.org/10.48550/arXiv.2607.03698)
+- [Causal-framework source](framework_diagram/)
 
 ## Model definition
 
@@ -213,6 +245,20 @@ pytest -q
 ```
 
 The tests check current conservation, resistance consistency, Laplacian symmetry and positive semidefiniteness, activation/resistance decoupling, edge-disjoint pathway counting, the fixed-radius density definition, and the fixed-threshold power-law convention.
+
+## Citation
+
+If you use this code, please cite the public preprint:
+
+```bibtex
+@article{issakah2026nanonecklace,
+  title   = {Graph-Based Kirchhoff Modeling of Non-Ohmic Electron Transport in Self-Assembled Nanonecklace Networks},
+  author  = {Issakah, Obed and Badrinarayanan, Srivathsan and Saraf, Ravi F. and Ock, Janghoon},
+  journal = {arXiv preprint arXiv:2607.03698},
+  year    = {2026},
+  doi     = {10.48550/arXiv.2607.03698}
+}
+```
 
 ## License
 
