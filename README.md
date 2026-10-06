@@ -58,9 +58,9 @@ The public portfolio gives a concise scientific overview; this README documents 
 
 Each junction $i$ is assigned a microscopic activation voltage $V_{a,i}$. It is active when
 
-$$
+```math
 V_{a,i} \le V .
-$$
+```
 
 where $V$ is the applied device voltage. An edge is available only when both endpoint junctions are active. This is a phenomenological global-voltage gating rule; activation is not solved self-consistently from the local voltage drop.
 
@@ -68,21 +68,21 @@ where $V$ is the applied device voltage. An edge is available only when both end
 
 The geometric resistance of an edge is
 
-$$
+```math
 R_{\mathrm{edge},ij}=k_{\mathrm{edge}}\,d_{ij}.
-$$
+```
 
 The junction resistance is fixed and independent of $V_{a,i}$:
 
-$$
+```math
 R_{\mathrm{node}}=R_{\mathrm{junction}}.
-$$
+```
 
 In the implementation, $R_{\mathrm{junction}}$ is specified by **node_resistance_ohm**.
 
 For each active undirected connection, the solver uses the symmetric total resistance
 
-$$
+```math
 R_{\mathrm{tot},ij}
 =
 R_{\mathrm{edge},ij}
@@ -91,7 +91,7 @@ R_{\mathrm{edge},ij}
 g_{ij}
 =
 \frac{1}{R_{\mathrm{tot},ij}}.
-$$
+```
 
 Electrode-contact nodes contribute zero junction resistance. This formulation avoids split-node orientation artifacts and keeps activation timing separate from electrical resistance.
 
@@ -99,21 +99,21 @@ Electrode-contact nodes contribute zero junction resistance. This formulation av
 
 Only active connected components touching both electrode sets are included in the electrical solve. The conductances form a symmetric weighted graph Laplacian $\mathbf{G}$:
 
-$$
+```math
 G_{ii}=\sum_j g_{ij},
 \qquad
 G_{ij}=-g_{ij}\quad(i\ne j).
-$$
+```
 
 Source-contact nodes are fixed at $V$, drain-contact nodes at $0$, and the internal potentials are obtained from the sparse nodal system. Every edge current then comes from the same solution:
 
-$$
+```math
 I_{ij}=g_{ij}\left(\phi_i-\phi_j\right).
-$$
+```
 
 Source and drain boundary currents are calculated independently. The reported device current is their symmetric average,
 
-$$
+```math
 I(V)
 =
 \frac{
@@ -121,7 +121,7 @@ I(V)
 +
 \left|I_{\mathrm{drain}}\right|
 }{2}.
-$$
+```
 
 and the absolute difference is stored as a current-conservation diagnostic.
 
@@ -131,23 +131,23 @@ The current framework contains no tunneling multiplier, path-current approximati
 
 The macroscopic threshold is defined directly from the sampled simulation:
 
-$$
+```math
 V_T \equiv V_{\mathrm{perc}}.
-$$
+```
 
 It is the first sampled voltage at which the active network spans source to drain and the device current becomes nonzero. It is not extrapolated as a free fitting parameter.
 
 Above this threshold, the nonlinear region is described by
 
-$$
+```math
 I=A\left(V-V_T\right)^{\zeta},
-$$
+```
 
 with $V_T$ held fixed. Only $A$ and $\zeta$ are fitted in logarithmic coordinates. The threshold point itself is excluded because
 
-$$
+```math
 \log\!\left(V-V_T\right)
-$$
+```
 
 is undefined at $V=V_T$. The fit ends when 90% of the nodes are active; if 90% activation is not reached, the remaining available window is used, up to the configured maximum fit width.
 
@@ -170,14 +170,14 @@ The voltage sweep records:
 
 Roundoff-level edge currents are excluded from distribution statistics using
 
-$$
+```math
 |I_{ij}|
 >
 \max\!\left(
 10^{-30}\,\mathrm{A},
 10^{-12}\max_{k\ell}|I_{k\ell}|
 \right).
-$$
+```
 
 ## Parameter studies
 
@@ -191,15 +191,15 @@ The parameter driver supports:
 
 For Cases 3 and 4, $N$ is the density variable. The domain and connection radius remain fixed at
 
-$$
+```math
 r_c=0.15
-$$
+```
 
 for
 
-$$
+```math
 N=200,\;400,\;600,\;800.
-$$
+```
 
 Increasing $N$ therefore increases the number of nearby neighbors and edges. The older $N^{-1/2}$ radius scaling is not used.
 
