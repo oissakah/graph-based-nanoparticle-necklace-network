@@ -40,7 +40,7 @@ macroscopic I(V)
 - a sparse Kirchhoff solver with explicit source/drain boundary conditions;
 - nodal-potential and edge-current reconstruction;
 - voltage-resolved percolation and connectivity diagnostics;
-- conductance-weighted spectral metrics, including `λ₂ [S]`;
+- conductance-weighted spectral metrics, including \(\lambda_2\,[\mathrm{S}]\);
 - multiseed and parameter-sweep workflows;
 - publication-oriented analysis and plotting code;
 - regression tests for physical and numerical consistency;
@@ -56,57 +56,72 @@ The public portfolio gives a concise scientific overview; this README documents 
 
 ### Voltage-dependent activation
 
-Each junction `i` is assigned a microscopic activation voltage `Va_i`. It is active when
+Each junction \(i\) is assigned a microscopic activation voltage \(V_{a,i}\). It is active when
 
-```text
-Va_i <= V
-```
+\[
+V_{a,i} \le V .
+\]
 
-where `V` is the applied device voltage. An edge is available only when both endpoint junctions are active. This is a phenomenological global-voltage gating rule; activation is not solved self-consistently from the local voltage drop.
+where \(V\) is the applied device voltage. An edge is available only when both endpoint junctions are active. This is a phenomenological global-voltage gating rule; activation is not solved self-consistently from the local voltage drop.
 
 ### Resistance model
 
 The geometric resistance of an edge is
 
-```text
-R_edge,ij = edge_k * distance_ij
-```
+\[
+R_{\mathrm{edge},ij}=k_{\mathrm{edge}}\,d_{ij}.
+\]
 
-The junction resistance is fixed and independent of `Va_i`:
+The junction resistance is fixed and independent of \(V_{a,i}\):
 
-```text
-R_node = node_resistance_ohm
-```
+\[
+R_{\mathrm{node}}=R_{\mathrm{junction}}.
+\]
+
+In the implementation, \(R_{\mathrm{junction}}\) is specified by **node_resistance_ohm**.
 
 For each active undirected connection, the solver uses the symmetric total resistance
 
-```text
-R_tot,ij = R_edge,ij + (R_i + R_j)/2
-g_ij     = 1/R_tot,ij
-```
+\[
+R_{\mathrm{tot},ij}
+=
+R_{\mathrm{edge},ij}
++\frac{R_i+R_j}{2},
+\qquad
+g_{ij}
+=
+\frac{1}{R_{\mathrm{tot},ij}}.
+\]
 
 Electrode-contact nodes contribute zero junction resistance. This formulation avoids split-node orientation artifacts and keeps activation timing separate from electrical resistance.
 
 ### Kirchhoff solution
 
-Only active connected components touching both electrode sets are included in the electrical solve. The conductances form a symmetric weighted graph Laplacian `G`:
+Only active connected components touching both electrode sets are included in the electrical solve. The conductances form a symmetric weighted graph Laplacian \(\mathbf{G}\):
 
-```text
-G_ii = sum_j g_ij
-G_ij = -g_ij
-```
+\[
+G_{ii}=\sum_j g_{ij},
+\qquad
+G_{ij}=-g_{ij}\quad(i\ne j).
+\]
 
-Source-contact nodes are fixed at `V`, drain-contact nodes at `0`, and the internal potentials are obtained from the sparse nodal system. Every edge current then comes from the same solution:
+Source-contact nodes are fixed at \(V\), drain-contact nodes at \(0\), and the internal potentials are obtained from the sparse nodal system. Every edge current then comes from the same solution:
 
-```text
-I_ij = g_ij * (phi_i - phi_j)
-```
+\[
+I_{ij}=g_{ij}\left(\phi_i-\phi_j\right).
+\]
 
 Source and drain boundary currents are calculated independently. The reported device current is their symmetric average,
 
-```text
-I(V) = (|I_source| + |I_drain|)/2
-```
+\[
+I(V)
+=
+\frac{
+\left|I_{\mathrm{source}}\right|
++
+\left|I_{\mathrm{drain}}\right|
+}{2}.
+\]
 
 and the absolute difference is stored as a current-conservation diagnostic.
 
@@ -116,21 +131,27 @@ The current framework contains no tunneling multiplier, path-current approximati
 
 The macroscopic threshold is defined directly from the sampled simulation:
 
-```text
-V_T ≡ V_perc
-```
+\[
+V_T \equiv V_{\mathrm{perc}}.
+\]
 
 It is the first sampled voltage at which the active network spans source to drain and the device current becomes nonzero. It is not extrapolated as a free fitting parameter.
 
 Above this threshold, the nonlinear region is described by
 
-```text
-I = A * (V - V_T)^zeta
-```
+\[
+I=A\left(V-V_T\right)^{\zeta},
+\]
 
-with `V_T` held fixed. Only `A` and `zeta` are fitted in logarithmic coordinates. The threshold point itself is excluded because `log(V - V_T)` is undefined at `V = V_T`. The fit ends when 90% of the nodes are active; if 90% activation is not reached, the remaining available window is used, up to the configured maximum fit width.
+with \(V_T\) held fixed. Only \(A\) and \(\zeta\) are fitted in logarithmic coordinates. The threshold point itself is excluded because
 
-The CSV field `fit_V_T_V` is retained for compatibility, but it is identical to `percolation_voltage_V` in this framework.
+\[
+\log\!\left(V-V_T\right)
+\]
+
+is undefined at \(V=V_T\). The fit ends when 90% of the nodes are active; if 90% activation is not reached, the remaining available window is used, up to the configured maximum fit width.
+
+The CSV field **fit_V_T_V** is retained for compatibility, but it is identical to **percolation_voltage_V** in this framework.
 
 ## Internal diagnostics
 
@@ -144,32 +165,43 @@ The voltage sweep records:
 - current participation ratio and backbone size;
 - connected-component statistics;
 - edge-current distribution statistics;
-- conductance-weighted algebraic connectivity `lambda_2` in siemens `[S]`;
-- the number of edge-disjoint source–drain pathways at `V_perc`.
+- conductance-weighted algebraic connectivity \(\lambda_2\) in siemens \([\mathrm{S}]\);
+- the number of edge-disjoint source–drain pathways at \(V_{\mathrm{perc}}\).
 
 Roundoff-level edge currents are excluded from distribution statistics using
 
-```text
-|I_ij| > max(1e-30 A, 1e-12 * max|I_kl|).
-```
+\[
+|I_{ij}|
+>
+\max\!\left(
+10^{-30}\,\mathrm{A},
+10^{-12}\max_{k\ell}|I_{k\ell}|
+\right).
+\]
 
 ## Parameter studies
 
 The parameter driver supports:
 
-- **Case 1:** activation-voltage width `sigma_a`;
-- **Case 2:** mean activation voltage `<Va>`;
-- **Case 3:** crossed `N × <Va>` study;
-- **Case 4:** network density through node count `N`;
-- **Case R:** random void fraction `f_v`.
+- **Case 1:** activation-voltage width \(\sigma_a\);
+- **Case 2:** mean activation voltage \(\langle V_a\rangle\);
+- **Case 3:** crossed \(N\times\langle V_a\rangle\) study;
+- **Case 4:** network density through node count \(N\);
+- **Case R:** random void fraction \(f_v\).
 
-For Cases 3 and 4, `N` is the density variable. The domain and connection radius remain fixed at
+For Cases 3 and 4, \(N\) is the density variable. The domain and connection radius remain fixed at
 
-```text
-r_c = 0.15
-```
+\[
+r_c=0.15
+\]
 
-for `N = 200, 400, 600, 800`. Increasing `N` therefore increases the number of nearby neighbors and edges. The older `N^(-1/2)` radius scaling is not used.
+for
+
+\[
+N=200,\;400,\;600,\;800.
+\]
+
+Increasing \(N\) therefore increases the number of nearby neighbors and edges. The older \(N^{-1/2}\) radius scaling is not used.
 
 Void cases report both requested and achieved void fractions. The achieved fraction is calculated from the union area, so overlapping voids are counted only once.
 
